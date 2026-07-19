@@ -242,3 +242,35 @@ class TransaccionViewSet(FiltrarPorLineaMixin, viewsets.ModelViewSet):
     search_fields = ["cliente", "referencia"]
     ordering_fields = ["timestamp", "monto"]
     ordering = ["-timestamp"]
+
+
+@api_view(["POST"])
+@permission_classes([TienePerfilNegocio])
+def limpiar_datos_test(request):
+    """Elimina rentas, devoluciones y abonos de la línea de negocio del usuario."""
+    from api.models import Abono
+    from api.permissions import linea_negocio_usuario
+
+    linea = linea_negocio_usuario(request.user)
+    categoria = request.data.get("categoria")  # noche, quince, boda o None para todas
+
+    rentas_qs = Renta.objects.filter(linea_negocio=linea)
+    if categoria and linea == "vestidos":
+        rentas_qs = rentas_qs.filter(categoria_vestido=categoria)
+
+    renta_ids = list(rentas_qs.values_list("id", flat=True))
+
+    abonos_eliminados = Abono.objects.filter(renta_id__in=renta_ids).count()
+    Abono.objects.filter(renta_id__in=renta_ids).delete()
+
+    devoluciones_eliminadas = Devolucion.objects.filter(renta_id__in=renta_ids).count()
+    Devolucion.objects.filter(renta_id__in=renta_ids).delete()
+
+    rentas_eliminadas = rentas_qs.count()
+    rentas_qs.delete()
+
+    return Response({
+        "rentas": rentas_eliminadas,
+        "devoluciones": devoluciones_eliminadas,
+        "abonos": abonos_eliminados,
+    })

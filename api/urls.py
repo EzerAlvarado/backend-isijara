@@ -20,5 +20,6 @@ urlpatterns = [
     path("corte/gasto/", views_corte.corte_gasto, name="corte-gasto"),
     path("corte/vales/<int:vale_id>/reponer/", views_corte.corte_reponer_vale, name="corte-reponer-vale"),
     path("finanzas/", views_finanzas.configuracion_finanzas, name="finanzas"),
+    path("test/limpiar/", views.limpiar_datos_test, name="limpiar-datos-test"),
     path("", include(router.urls)),
 ]
