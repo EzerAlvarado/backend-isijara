@@ -2,6 +2,7 @@ from django.db import models
 
 from .linea_negocio import LineaNegocio
 from .metodo_pago import MetodoPago
+from .renta import Renta
 from .transaccion import Transaccion
 
 
@@ -26,6 +27,14 @@ class Vale(models.Model):
         choices=LineaNegocio.choices,
         default=LineaNegocio.TRAJES,
         db_index=True,
+    )
+    categoria_vestido = models.CharField(
+        max_length=20,
+        choices=Renta.CategoriaVestido.choices,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Solo vestidos: noche, quince o boda.",
     )
     transaccion = models.OneToOneField(
         Transaccion,

@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.db import models
 
 from .linea_negocio import LineaNegocio
+from .renta import Renta
 
 
 class TurnoCorte(models.TextChoices):
@@ -23,6 +24,14 @@ class CorteDia(models.Model):
         choices=LineaNegocio.choices,
         default=LineaNegocio.TRAJES,
         db_index=True,
+    )
+    categoria_vestido = models.CharField(
+        max_length=20,
+        choices=Renta.CategoriaVestido.choices,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Solo vestidos: noche, quince o boda. Null para trajes.",
     )
     fondo_inicial = models.DecimalField(
         max_digits=10,
@@ -53,8 +62,8 @@ class CorteDia(models.Model):
         verbose_name_plural = "cortes del día"
         constraints = [
             models.UniqueConstraint(
-                fields=["fecha", "linea_negocio", "turno"],
-                name="unique_corte_fecha_linea_turno",
+                fields=["fecha", "linea_negocio", "turno", "categoria_vestido"],
+                name="unique_corte_fecha_linea_turno_categoria",
             ),
         ]
 

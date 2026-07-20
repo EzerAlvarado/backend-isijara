@@ -37,6 +37,7 @@ def _cliente_renta(renta: Renta) -> str:
 def registrar_transaccion_renta(renta: Renta) -> None:
     monto = _monto_cobro_renta(renta)
     linea = renta.linea_negocio or LineaNegocio.TRAJES
+    categoria = renta.categoria_vestido if linea == LineaNegocio.VESTIDOS else None
     if monto <= 0:
         Transaccion.objects.filter(referencia=f"R{renta.pk}", linea_negocio=linea).delete()
         return
@@ -55,12 +56,16 @@ def registrar_transaccion_renta(renta: Renta) -> None:
             "cliente": _cliente_renta(renta) or f"RENTA #{renta.pk}",
             "pago": pago,
             "monto": monto,
+            "categoria_vestido": categoria,
         },
     )
 
 
 def registrar_transaccion_multa(devolucion: Devolucion) -> None:
     linea = devolucion.renta.linea_negocio if devolucion.renta_id else LineaNegocio.TRAJES
+    categoria = None
+    if devolucion.renta_id and linea == LineaNegocio.VESTIDOS:
+        categoria = devolucion.renta.categoria_vestido
     if devolucion.multa_perdonada or devolucion.penalizacion <= 0:
         Transaccion.objects.filter(referencia=f"M{devolucion.pk}", linea_negocio=linea).delete()
         return
@@ -73,6 +78,7 @@ def registrar_transaccion_multa(devolucion: Devolucion) -> None:
             "cliente": (devolucion.cliente or "").upper(),
             "pago": MetodoPago.PESOS,
             "monto": devolucion.penalizacion,
+            "categoria_vestido": categoria,
         },
     )
 
@@ -80,6 +86,7 @@ def registrar_transaccion_multa(devolucion: Devolucion) -> None:
 def registrar_transaccion_abono(abono: Abono) -> None:
     renta = abono.renta
     linea = renta.linea_negocio or LineaNegocio.TRAJES
+    categoria = renta.categoria_vestido if linea == LineaNegocio.VESTIDOS else None
     if abono.monto <= 0:
         Transaccion.objects.filter(referencia=f"A{abono.pk}", linea_negocio=linea).delete()
         return
@@ -96,12 +103,16 @@ def registrar_transaccion_abono(abono: Abono) -> None:
             "cliente": _cliente_renta(renta) or f"RENTA #{renta.pk}",
             "pago": pago,
             "monto": abono.monto,
+            "categoria_vestido": categoria,
         },
     )
 
 
 def registrar_transaccion_danos(devolucion: Devolucion) -> None:
     linea = devolucion.renta.linea_negocio if devolucion.renta_id else LineaNegocio.TRAJES
+    categoria = None
+    if devolucion.renta_id and linea == LineaNegocio.VESTIDOS:
+        categoria = devolucion.renta.categoria_vestido
     if devolucion.cargo_danos <= 0:
         Transaccion.objects.filter(referencia=f"D{devolucion.pk}", linea_negocio=linea).delete()
         return
@@ -114,6 +125,7 @@ def registrar_transaccion_danos(devolucion: Devolucion) -> None:
             "cliente": (devolucion.cliente or "").upper(),
             "pago": MetodoPago.PESOS,
             "monto": devolucion.cargo_danos,
+            "categoria_vestido": categoria,
         },
     )
 
@@ -135,33 +147,34 @@ def sincronizar_transacciones_dia(fecha: date, linea_negocio: str) -> None:
             registrar_transaccion_danos(dev)
 
 
-def _corte_turno(fecha: date, linea_negocio: str, turno: str) -> CorteDia | None:
+def _corte_turno(fecha: date, linea_negocio: str, turno: str, categoria: str | None = None) -> CorteDia | None:
     return CorteDia.objects.filter(
         fecha=fecha,
         linea_negocio=linea_negocio,
         turno=turno,
+        categoria_vestido=categoria,
     ).first()
 
 
-def _ultimo_corte_cerrado_antes(fecha: date, linea_negocio: str, turno: str) -> CorteDia | None:
+def _ultimo_corte_cerrado_antes(fecha: date, linea_negocio: str, turno: str, categoria: str | None = None) -> CorteDia | None:
     """Último corte cerrado inmediatamente anterior a fecha/turno."""
     if turno == TurnoCorte.TARDE:
-        manana = _corte_turno(fecha, linea_negocio, TurnoCorte.MANANA)
+        manana = _corte_turno(fecha, linea_negocio, TurnoCorte.MANANA, categoria)
         if manana and manana.cerrado:
             return manana
 
     anterior = fecha - timedelta(days=1)
-    tarde_ant = _corte_turno(anterior, linea_negocio, TurnoCorte.TARDE)
+    tarde_ant = _corte_turno(anterior, linea_negocio, TurnoCorte.TARDE, categoria)
     if tarde_ant and tarde_ant.cerrado:
         return tarde_ant
-    manana_ant = _corte_turno(anterior, linea_negocio, TurnoCorte.MANANA)
+    manana_ant = _corte_turno(anterior, linea_negocio, TurnoCorte.MANANA, categoria)
     if manana_ant and manana_ant.cerrado:
         return manana_ant
     return None
 
 
-def _fondo_herencia(fecha: date, linea_negocio: str, turno: str) -> tuple[Decimal, dict] | None:
-    corte_ant = _ultimo_corte_cerrado_antes(fecha, linea_negocio, turno)
+def _fondo_herencia(fecha: date, linea_negocio: str, turno: str, categoria: str | None = None) -> tuple[Decimal, dict] | None:
+    corte_ant = _ultimo_corte_cerrado_antes(fecha, linea_negocio, turno, categoria)
     if not corte_ant:
         return None
     fondo = corte_ant.fondo_inicial if corte_ant.fondo_inicial > 0 else obtener_fondo_feria(linea_negocio)
@@ -211,7 +224,7 @@ def _sincronizar_fondo_feria(corte: CorteDia) -> CorteDia:
     if corte.cerrado:
         return corte
     changed = False
-    herencia = _fondo_herencia(corte.fecha, corte.linea_negocio, corte.turno)
+    herencia = _fondo_herencia(corte.fecha, corte.linea_negocio, corte.turno, corte.categoria_vestido)
     if corte.fondo_inicial <= 0:
         corte.fondo_inicial = herencia[0] if herencia else obtener_fondo_feria(corte.linea_negocio)
         changed = True
@@ -236,12 +249,12 @@ def _sincronizar_fondo_feria(corte: CorteDia) -> CorteDia:
     return corte
 
 
-def resolver_turno(fecha: date, linea_negocio: str, turno: str | None = None) -> str:
+def resolver_turno(fecha: date, linea_negocio: str, turno: str | None = None, categoria: str | None = None) -> str:
     if turno in (TurnoCorte.MANANA, TurnoCorte.TARDE):
         return turno
 
-    manana = _corte_turno(fecha, linea_negocio, TurnoCorte.MANANA)
-    tarde = _corte_turno(fecha, linea_negocio, TurnoCorte.TARDE)
+    manana = _corte_turno(fecha, linea_negocio, TurnoCorte.MANANA, categoria)
+    tarde = _corte_turno(fecha, linea_negocio, TurnoCorte.TARDE, categoria)
 
     if manana and not manana.cerrado:
         return TurnoCorte.MANANA
@@ -256,9 +269,10 @@ def obtener_o_crear_corte(
     fecha: date,
     linea_negocio: str,
     turno: str | None = None,
+    categoria: str | None = None,
 ) -> CorteDia:
-    turno = resolver_turno(fecha, linea_negocio, turno)
-    herencia = _fondo_herencia(fecha, linea_negocio, turno)
+    turno = resolver_turno(fecha, linea_negocio, turno, categoria)
+    herencia = _fondo_herencia(fecha, linea_negocio, turno, categoria)
     defaults: dict = {
         "fondo_inicial": obtener_fondo_feria(linea_negocio),
         "conteo_fondo": {},
@@ -271,6 +285,7 @@ def obtener_o_crear_corte(
         fecha=fecha,
         linea_negocio=linea_negocio,
         turno=turno,
+        categoria_vestido=categoria,
         defaults=defaults,
     )
     if not created:
@@ -281,7 +296,7 @@ def obtener_o_crear_corte(
 def corte_incluye_manana(corte: CorteDia) -> bool:
     if corte.turno != TurnoCorte.TARDE:
         return False
-    manana = _corte_turno(corte.fecha, corte.linea_negocio, TurnoCorte.MANANA)
+    manana = _corte_turno(corte.fecha, corte.linea_negocio, TurnoCorte.MANANA, corte.categoria_vestido)
     if not manana:
         return False
     if manana.omitido:
@@ -291,7 +306,7 @@ def corte_incluye_manana(corte: CorteDia) -> bool:
 
 def _rango_transacciones_corte(corte: CorteDia) -> tuple[datetime, datetime]:
     inicio_dia, fin_dia = _inicio_fin_dia(corte.fecha)
-    manana = _corte_turno(corte.fecha, corte.linea_negocio, TurnoCorte.MANANA)
+    manana = _corte_turno(corte.fecha, corte.linea_negocio, TurnoCorte.MANANA, corte.categoria_vestido)
 
     if corte.turno == TurnoCorte.MANANA:
         inicio = inicio_dia
@@ -318,6 +333,7 @@ def transacciones_del_corte(corte: CorteDia):
     return Transaccion.objects.filter(
         timestamp__range=(inicio, fin),
         linea_negocio=corte.linea_negocio,
+        categoria_vestido=corte.categoria_vestido,
     ).order_by("-timestamp")
 
 
@@ -329,12 +345,15 @@ def transacciones_del_dia(fecha: date, linea_negocio: str):
     ).order_by("-timestamp")
 
 
-def multas_tardias_activas(linea_negocio: str):
-    return Devolucion.objects.filter(
+def multas_tardias_activas(linea_negocio: str, categoria: str | None = None):
+    qs = Devolucion.objects.filter(
         penalizacion__gt=0,
         estatus=Devolucion.Estatus.RETRASADO,
         renta__linea_negocio=linea_negocio,
     ).select_related("renta")
+    if categoria:
+        qs = qs.filter(renta__categoria_vestido=categoria)
+    return qs
 
 
 def _fondo_fisico_en_caja(
@@ -388,7 +407,7 @@ def calcular_resumen(corte: CorteDia) -> dict:
             if monto > 0:
                 digital_pesos += monto_mxn
 
-    vales = vales_pendientes(corte.linea_negocio)
+    vales = vales_pendientes(corte.linea_negocio, corte.categoria_vestido)
     vales_pendientes_total = sum((Decimal(v.monto_mxn) for v in vales), Decimal("0"))
     vales_esperados = vales_esperados_fondo(corte.conteo_fondo, vales_pendientes_total)
     fondo_fisico = _fondo_fisico_en_caja(
@@ -438,6 +457,7 @@ def _propagar_fondo_tras_cierre(corte: CorteDia) -> None:
         fecha=fecha_sig,
         linea_negocio=corte.linea_negocio,
         turno=turno_sig,
+        categoria_vestido=corte.categoria_vestido,
         defaults={
             "fondo_inicial": fondo,
             "conteo_fondo": conteo,
@@ -449,10 +469,10 @@ def _propagar_fondo_tras_cierre(corte: CorteDia) -> None:
         corte_sig.save(update_fields=["fondo_inicial", "conteo_fondo", "actualizado_en"])
 
 
-def estado_turnos_dia(fecha: date, linea_negocio: str) -> list[dict]:
+def estado_turnos_dia(fecha: date, linea_negocio: str, categoria: str | None = None) -> list[dict]:
     turnos = []
     for turno in (TurnoCorte.MANANA, TurnoCorte.TARDE):
-        corte = _corte_turno(fecha, linea_negocio, turno)
+        corte = _corte_turno(fecha, linea_negocio, turno, categoria)
         turnos.append(
             {
                 "turno": turno,
@@ -485,16 +505,17 @@ def cerrar_corte(
     conteo_fondo: dict | None = None,
     conteo_caja: dict | None = None,
     empleado: str = "",
+    categoria: str | None = None,
 ) -> CorteDia:
     empleado = str(empleado or "").strip().upper()
     if not empleado:
         raise ValueError("El nombre del empleado es obligatorio.")
 
-    turno = resolver_turno(fecha, linea_negocio, turno)
-    corte = obtener_o_crear_corte(fecha, linea_negocio, turno)
+    turno = resolver_turno(fecha, linea_negocio, turno, categoria)
+    corte = obtener_o_crear_corte(fecha, linea_negocio, turno, categoria)
 
     if corte.turno == TurnoCorte.TARDE:
-        manana = _corte_turno(fecha, linea_negocio, TurnoCorte.MANANA)
+        manana = _corte_turno(fecha, linea_negocio, TurnoCorte.MANANA, categoria)
         if manana and not manana.cerrado:
             _omitir_corte_manana(manana)
 

@@ -9,11 +9,16 @@ def es_gasto_fondo(referencia: str) -> bool:
     return str(referencia or "").upper().startswith("G")
 
 
-def vales_pendientes(linea_negocio: str):
-    return Vale.objects.filter(
+def vales_pendientes(linea_negocio: str, categoria: str | None = None):
+    qs = Vale.objects.filter(
         estatus=Vale.Estatus.PENDIENTE,
         linea_negocio=linea_negocio,
-    ).select_related("transaccion")
+    )
+    if categoria:
+        qs = qs.filter(categoria_vestido=categoria)
+    else:
+        qs = qs.filter(categoria_vestido__isnull=True)
+    return qs.select_related("transaccion")
 
 
 def registrar_gasto_fondo(
@@ -41,6 +46,7 @@ def registrar_gasto_fondo(
         pago=pago,
         monto=-abs(monto),
         linea_negocio=corte.linea_negocio,
+        categoria_vestido=corte.categoria_vestido,
     )
     corte.conteo_fondo = aplicar_vale_a_conteo_fondo(corte.conteo_fondo, monto_mxn)
     corte.save(update_fields=["conteo_fondo", "actualizado_en"])
@@ -51,6 +57,7 @@ def registrar_gasto_fondo(
         pago=pago,
         monto_mxn=monto_mxn,
         linea_negocio=corte.linea_negocio,
+        categoria_vestido=corte.categoria_vestido,
         transaccion=tx,
     )
     return tx, vale
@@ -63,6 +70,8 @@ def reponer_vale(corte: CorteDia, vale: Vale, *, ajustar_fondo: bool = True) -> 
         raise ValueError("Este vale ya fue repuesto.")
     if vale.linea_negocio != corte.linea_negocio:
         raise ValueError("El vale no corresponde a esta línea de negocio.")
+    if vale.categoria_vestido != corte.categoria_vestido:
+        raise ValueError("El vale no corresponde a esta categoría.")
 
     from api.services.conteo_caja import reponer_monto_en_conteo_fondo
 

@@ -2,8 +2,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from api.models import MetodoPago, Transaccion, Vale
-from api.permissions import TienePerfilNegocio, linea_negocio_usuario
+from api.models import LineaNegocio, MetodoPago, Transaccion, Vale
+from api.permissions import TienePerfilNegocio, categoria_vestido_usuario, linea_negocio_usuario
 from api.serializers.corte import CorteDiaSerializer, parse_fecha_query, parse_turno_query
 from api.serializers.transaccion import TransaccionSerializer
 from api.services.corte import (
@@ -24,10 +24,19 @@ from api.services.finanzas import obtener_fondo_feria, obtener_tipo_cambio
 from api.services.vales import registrar_gasto_fondo, reponer_vale, vales_pendientes
 
 
-def _payload_corte(fecha, linea_negocio, turno=None):
+def _parse_categoria_query(categoria_param: str | None, linea: str, user) -> str | None:
+    """Resuelve la categoría de vestido: desde query param o perfil de usuario."""
+    if linea != LineaNegocio.VESTIDOS:
+        return None
+    if categoria_param:
+        return categoria_param
+    return categoria_vestido_usuario(user)
+
+
+def _payload_corte(fecha, linea_negocio, turno=None, categoria=None):
     sincronizar_transacciones_dia(fecha, linea_negocio)
-    turno = resolver_turno(fecha, linea_negocio, turno)
-    corte = obtener_o_crear_corte(fecha, linea_negocio, turno)
+    turno = resolver_turno(fecha, linea_negocio, turno, categoria)
+    corte = obtener_o_crear_corte(fecha, linea_negocio, turno, categoria)
     txs = transacciones_del_corte(corte)
     multas = [
         {
@@ -35,7 +44,7 @@ def _payload_corte(fecha, linea_negocio, turno=None):
             "rentaId": str(d.renta_id),
             "monto": float(d.penalizacion),
         }
-        for d in multas_tardias_activas(linea_negocio)
+        for d in multas_tardias_activas(linea_negocio, categoria)
     ]
     resumen = calcular_resumen(corte)
     conteo_cierre = normalizar_conteo(corte.conteo_fisico)
@@ -68,13 +77,14 @@ def _payload_corte(fecha, linea_negocio, turno=None):
         + resumen["cajaDelDia"]
         + vales_esperados_fondo
     )
-    vales = list(vales_pendientes(linea_negocio))
+    vales = list(vales_pendientes(linea_negocio, categoria))
     return {
         "fecha": fecha.isoformat(),
         "turno": corte.turno,
         "turnoLabel": corte.get_turno_display(),
         "incluyeManana": corte_incluye_manana(corte),
-        "turnosDia": estado_turnos_dia(fecha, linea_negocio),
+        "turnosDia": estado_turnos_dia(fecha, linea_negocio, categoria),
+        "categoriaVestido": corte.categoria_vestido,
         "fondoInicial": float(corte.fondo_inicial),
         "fondoFeriaConfig": float(obtener_fondo_feria(linea_negocio)),
         "cerrado": corte.cerrado,
@@ -109,13 +119,18 @@ def _payload_corte(fecha, linea_negocio, turno=None):
 @permission_classes([TienePerfilNegocio])
 def corte_dia(request):
     linea = linea_negocio_usuario(request.user)
+    categoria = _parse_categoria_query(
+        request.query_params.get("categoria"),
+        linea,
+        request.user,
+    )
     try:
         fecha = parse_fecha_query(request.query_params.get("fecha"))
         turno = parse_turno_query(request.query_params.get("turno"))
     except Exception as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-    corte = obtener_o_crear_corte(fecha, linea, turno)
+    corte = obtener_o_crear_corte(fecha, linea, turno, categoria)
 
     if request.method == "PATCH":
         if corte.cerrado:
@@ -127,20 +142,25 @@ def corte_dia(request):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-    return Response(_payload_corte(fecha, linea, corte.turno))
+    return Response(_payload_corte(fecha, linea, corte.turno, categoria))
 
 
 @api_view(["POST"])
 @permission_classes([TienePerfilNegocio])
 def corte_cierre(request):
     linea = linea_negocio_usuario(request.user)
+    categoria = _parse_categoria_query(
+        request.data.get("categoria") or request.query_params.get("categoria"),
+        linea,
+        request.user,
+    )
     try:
         fecha = parse_fecha_query(request.data.get("fecha") or request.query_params.get("fecha"))
         turno = parse_turno_query(request.data.get("turno") or request.query_params.get("turno"))
     except Exception as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-    corte = obtener_o_crear_corte(fecha, linea, turno)
+    corte = obtener_o_crear_corte(fecha, linea, turno, categoria)
     if corte.cerrado:
         return Response(
             {"detail": "Este corte ya fue cerrado."},
@@ -170,6 +190,7 @@ def corte_cierre(request):
                 conteo_fondo=conteo_fondo,
                 conteo_caja=conteo_caja,
                 empleado=empleado,
+                categoria=categoria,
             )
         elif conteo_fisico is not None:
             cerrar_corte(
@@ -178,6 +199,7 @@ def corte_cierre(request):
                 turno=turno_cierre,
                 conteo_fisico=conteo_fisico,
                 empleado=empleado,
+                categoria=categoria,
             )
         else:
             return Response(
@@ -187,20 +209,25 @@ def corte_cierre(request):
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-    return Response(_payload_corte(fecha, linea, corte.turno))
+    return Response(_payload_corte(fecha, linea, corte.turno, categoria))
 
 
 @api_view(["POST"])
 @permission_classes([TienePerfilNegocio])
 def corte_gasto(request):
     linea = linea_negocio_usuario(request.user)
+    categoria = _parse_categoria_query(
+        request.data.get("categoria"),
+        linea,
+        request.user,
+    )
     try:
         fecha = parse_fecha_query(request.data.get("fecha"))
         turno = parse_turno_query(request.data.get("turno"))
     except Exception as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-    corte = obtener_o_crear_corte(fecha, linea, turno)
+    corte = obtener_o_crear_corte(fecha, linea, turno, categoria)
     if corte.cerrado:
         return Response(
             {"detail": "No se pueden agregar movimientos a un corte cerrado."},
@@ -225,7 +252,7 @@ def corte_gasto(request):
         {
             "transaccion": TransaccionSerializer(tx).data,
             "vale": ValeSerializer(vale).data,
-            **_payload_corte(fecha, linea, corte.turno),
+            **_payload_corte(fecha, linea, corte.turno, categoria),
         },
         status=status.HTTP_201_CREATED,
     )
@@ -235,15 +262,20 @@ def corte_gasto(request):
 @permission_classes([TienePerfilNegocio])
 def corte_reponer_vale(request, vale_id):
     linea = linea_negocio_usuario(request.user)
+    categoria = _parse_categoria_query(
+        request.data.get("categoria"),
+        linea,
+        request.user,
+    )
     try:
         fecha = parse_fecha_query(request.data.get("fecha"))
         turno = parse_turno_query(request.data.get("turno"))
     except Exception as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-    corte = obtener_o_crear_corte(fecha, linea, turno)
+    corte = obtener_o_crear_corte(fecha, linea, turno, categoria)
     try:
-        vale = Vale.objects.get(pk=vale_id, linea_negocio=linea)
+        vale = Vale.objects.get(pk=vale_id, linea_negocio=linea, categoria_vestido=categoria)
     except Vale.DoesNotExist:
         return Response({"detail": "Vale no encontrado."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -259,6 +291,6 @@ def corte_reponer_vale(request, vale_id):
     return Response(
         {
             "vale": ValeSerializer(vale).data,
-            **_payload_corte(fecha, linea, corte.turno),
+            **_payload_corte(fecha, linea, corte.turno, categoria),
         },
     )
