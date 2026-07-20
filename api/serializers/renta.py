@@ -116,6 +116,11 @@ class RentaSerializer(serializers.ModelSerializer):
         choices=Renta.TipoOperacion.choices,
         required=False,
     )
+    depositoReembolsable = serializers.CharField(
+        source="deposito_reembolsable",
+        allow_blank=True,
+        required=False,
+    )
     totalCobrar = serializers.SerializerMethodField()
     totalPagado = serializers.SerializerMethodField()
     totalAbonado = serializers.SerializerMethodField()
@@ -167,6 +172,7 @@ class RentaSerializer(serializers.ModelSerializer):
             "categoriaVestido",
             "cancelada",
             "tipoOperacion",
+            "depositoReembolsable",
             "totalCobrar",
             "totalPagado",
             "totalAbonado",

@@ -145,6 +145,11 @@ class Renta(models.Model):
         default=TipoOperacion.RENTA,
         db_index=True,
     )
+    deposito_reembolsable = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Depósito reembolsable (texto descriptivo, ej: $500)",
+    )
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)
 
