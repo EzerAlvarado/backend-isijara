@@ -65,6 +65,9 @@ class Renta(models.Model):
     color_pantalon = models.CharField(max_length=120, blank=True)
     marca_chaleco = models.CharField(max_length=120, blank=True)
     marca_pantalon = models.CharField(max_length=120, blank=True)
+    detalles_saco = models.CharField(max_length=255, blank=True, help_text="Nombre/descripción del saco (ej: TRAJE AZUL INDIGO)")
+    detalles_chaleco = models.CharField(max_length=255, blank=True, help_text="Nombre/descripción del chaleco")
+    detalles_pantalon = models.CharField(max_length=255, blank=True, help_text="Nombre/descripción del pantalón")
     estatus_fila = models.CharField(
         max_length=24,
         choices=EstatusCelda.choices,

@@ -37,6 +37,9 @@ _TEXT_FIELDS = (
     "color_pantalon",
     "marca_chaleco",
     "marca_pantalon",
+    "detalles_saco",
+    "detalles_chaleco",
+    "detalles_pantalon",
 )
 
 
@@ -67,6 +70,9 @@ class RentaSerializer(serializers.ModelSerializer):
     colorPantalon = serializers.CharField(source="color_pantalon", allow_blank=True, required=False)
     marcaChaleco = serializers.CharField(source="marca_chaleco", allow_blank=True, required=False)
     marcaPantalon = serializers.CharField(source="marca_pantalon", allow_blank=True, required=False)
+    detallesSaco = serializers.CharField(source="detalles_saco", allow_blank=True, required=False)
+    detallesChaleco = serializers.CharField(source="detalles_chaleco", allow_blank=True, required=False)
+    detallesPantalon = serializers.CharField(source="detalles_pantalon", allow_blank=True, required=False)
     piezaSacoId = serializers.PrimaryKeyRelatedField(
         source="pieza_saco",
         queryset=Pieza.objects.all(),
@@ -154,6 +160,9 @@ class RentaSerializer(serializers.ModelSerializer):
             "colorPantalon",
             "marcaChaleco",
             "marcaPantalon",
+            "detallesSaco",
+            "detallesChaleco",
+            "detallesPantalon",
             "estatusFila",
             "semanaInicio",
             "fechaSalida",
