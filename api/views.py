@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from django_ratelimit.decorators import ratelimit
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -244,6 +245,7 @@ class TransaccionViewSet(FiltrarPorLineaMixin, viewsets.ModelViewSet):
     ordering = ["-timestamp"]
 
 
+@ratelimit(key="user", rate="3/h", method="POST", block=True)
 @api_view(["POST"])
 @permission_classes([TienePerfilNegocio])
 def limpiar_datos_test(request):

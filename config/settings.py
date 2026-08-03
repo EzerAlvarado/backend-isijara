@@ -143,3 +143,15 @@ REST_FRAMEWORK = {
     "DATETIME_FORMAT": "%Y-%m-%dT%H:%M:%S%z",
     "DATE_FORMAT": "%Y-%m-%d",
 }
+
+# Rate Limiting
+RATELIMIT_VIEW = "api.views_auth.ratelimit_error"
+RATELIMIT_ENABLE = True
+
+# Cache para rate limiting (usa memoria local por defecto)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "ratelimit-cache",
+    }
+}
