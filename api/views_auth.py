@@ -1,4 +1,7 @@
 from django.contrib.auth import authenticate
+from django.http import JsonResponse
+from django_ratelimit.decorators import ratelimit
+from django_ratelimit.exceptions import Ratelimited
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
@@ -6,6 +9,14 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from api.permissions import TienePerfilNegocio, linea_negocio_usuario
+
+
+def ratelimit_error(request, exception):
+    """Handler para cuando se excede el rate limit."""
+    return JsonResponse(
+        {"detail": "Demasiados intentos. Espera un momento antes de intentar de nuevo."},
+        status=429,
+    )
 
 PERFIL_VESTIDO_A_SLUG = {
     "noche": "noche",
@@ -28,6 +39,7 @@ def _usuario_payload(user):
     return payload
 
 
+@ratelimit(key="ip", rate="5/m", method="POST", block=True)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login(request):

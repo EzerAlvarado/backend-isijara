@@ -1,3 +1,4 @@
+from django_ratelimit.decorators import ratelimit
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -145,6 +146,7 @@ def corte_dia(request):
     return Response(_payload_corte(fecha, linea, corte.turno, categoria))
 
 
+@ratelimit(key="user", rate="10/h", method="POST", block=True)
 @api_view(["POST"])
 @permission_classes([TienePerfilNegocio])
 def corte_cierre(request):
@@ -212,6 +214,7 @@ def corte_cierre(request):
     return Response(_payload_corte(fecha, linea, corte.turno, categoria))
 
 
+@ratelimit(key="user", rate="30/h", method="POST", block=True)
 @api_view(["POST"])
 @permission_classes([TienePerfilNegocio])
 def corte_gasto(request):
