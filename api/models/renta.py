@@ -153,6 +153,12 @@ class Renta(models.Model):
         blank=True,
         help_text="Depósito reembolsable (texto descriptivo, ej: $500)",
     )
+    pagare = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Monto del pagaré (BUENO POR $)",
+    )
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)
 

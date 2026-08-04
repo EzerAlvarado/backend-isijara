@@ -127,6 +127,12 @@ class RentaSerializer(serializers.ModelSerializer):
         allow_blank=True,
         required=False,
     )
+    pagare = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        default=0,
+    )
     totalCobrar = serializers.SerializerMethodField()
     totalPagado = serializers.SerializerMethodField()
     totalAbonado = serializers.SerializerMethodField()
@@ -182,6 +188,7 @@ class RentaSerializer(serializers.ModelSerializer):
             "cancelada",
             "tipoOperacion",
             "depositoReembolsable",
+            "pagare",
             "totalCobrar",
             "totalPagado",
             "totalAbonado",
