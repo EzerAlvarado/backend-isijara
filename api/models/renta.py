@@ -75,6 +75,11 @@ class Renta(models.Model):
     )
     semana_inicio = models.DateField()
     fecha_salida = models.CharField(max_length=32)
+    fecha_evento = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text="Fecha del evento (recibo). Si vacío, se usa fecha de entrega.",
+    )
     fecha_regreso = models.CharField(max_length=32)
     fecha_salio_real = models.DateField(
         null=True,

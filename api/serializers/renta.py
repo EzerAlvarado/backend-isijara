@@ -59,6 +59,7 @@ class RentaSerializer(serializers.ModelSerializer):
     estatusFila = serializers.CharField(source="estatus_fila", allow_blank=True, required=False)
     semanaInicio = serializers.DateField(source="semana_inicio", format="%Y-%m-%d")
     fechaSalida = serializers.CharField(source="fecha_salida")
+    fechaEvento = serializers.CharField(source="fecha_evento", allow_blank=True, required=False)
     fechaRegreso = serializers.CharField(source="fecha_regreso")
     fechaSalioReal = serializers.DateField(
         source="fecha_salio_real",
@@ -172,6 +173,7 @@ class RentaSerializer(serializers.ModelSerializer):
             "estatusFila",
             "semanaInicio",
             "fechaSalida",
+            "fechaEvento",
             "fechaRegreso",
             "fechaSalioReal",
             "piezaSacoId",
