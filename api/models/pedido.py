@@ -19,7 +19,6 @@ class Pedido(models.Model):
         CANCELADO = "cancelado", "Cancelado"
 
     class Servicio(models.TextChoices):
-        RENTA = "renta", "Renta"
         VENTA = "venta", "Venta"
         PREMIER = "premier", "Premier"
 
@@ -38,7 +37,7 @@ class Pedido(models.Model):
     servicio = models.CharField(
         max_length=16,
         choices=Servicio.choices,
-        default=Servicio.RENTA,
+        default=Servicio.VENTA,
     )
     fecha_entrega = models.CharField(max_length=120, blank=True, default="")
     comentarios = models.TextField(blank=True, default="")

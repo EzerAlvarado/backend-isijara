@@ -48,11 +48,10 @@ class Migration(migrations.Migration):
                     "servicio",
                     models.CharField(
                         choices=[
-                            ("renta", "Renta"),
                             ("venta", "Venta"),
                             ("premier", "Premier"),
                         ],
-                        default="renta",
+                        default="venta",
                         max_length=16,
                     ),
                 ),
