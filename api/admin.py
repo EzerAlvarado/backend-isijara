@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Devolucion, Prenda, Renta, Transaccion
+from .models import Devolucion, Pedido, Prenda, Renta, Transaccion
 
 
 @admin.register(Prenda)
@@ -36,3 +36,19 @@ class TransaccionAdmin(admin.ModelAdmin):
     list_display = ("referencia", "cliente", "pago", "monto", "timestamp")
     list_filter = ("pago",)
     search_fields = ("referencia", "cliente")
+
+
+@admin.register(Pedido)
+class PedidoAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "cliente",
+        "tipo_pedido",
+        "estatus",
+        "servicio",
+        "fecha_entrega",
+        "mes_etiqueta",
+    )
+    list_filter = ("tipo_pedido", "estatus", "servicio", "mes_etiqueta")
+    search_fields = ("cliente", "estilo_piezas", "comentarios")
+

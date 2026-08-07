@@ -17,10 +17,11 @@ from api.filters import (
     TransaccionFilter,
 )
 from api.mixins import FiltrarDevolucionPorLineaMixin, FiltrarPorLineaMixin
-from api.models import Devolucion, Pieza, Prenda, Renta, Transaccion
+from api.models import Devolucion, Pedido, Pieza, Prenda, Renta, Transaccion
 from api.permissions import TienePerfilNegocio
 from api.serializers import (
     DevolucionSerializer,
+    PedidoSerializer,
     PiezaSerializer,
     PrendaSerializer,
     RentaSerializer,
@@ -243,6 +244,19 @@ class TransaccionViewSet(FiltrarPorLineaMixin, viewsets.ModelViewSet):
     search_fields = ["cliente", "referencia"]
     ordering_fields = ["timestamp", "monto"]
     ordering = ["-timestamp"]
+
+
+class PedidoViewSet(viewsets.ModelViewSet):
+    """Tablero general de pedidos (tuxedo, noche, xv, novia)."""
+
+    queryset = Pedido.objects.all()
+    serializer_class = PedidoSerializer
+    permission_classes = [TienePerfilNegocio]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["tipo_pedido", "estatus", "servicio", "mes_etiqueta"]
+    search_fields = ["cliente", "estilo_piezas", "comentarios", "fecha_entrega"]
+    ordering_fields = ["mes_etiqueta", "orden", "id", "creado_en"]
+    ordering = ["mes_etiqueta", "orden", "-id"]
 
 
 @ratelimit(key="user", rate="3/h", method="POST", block=True)

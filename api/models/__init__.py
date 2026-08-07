@@ -9,6 +9,7 @@ from .pieza import Pieza
 from .prenda import Prenda
 from .abono import Abono
 from .renta import Renta
+from .pedido import Pedido
 from .transaccion import Transaccion
 from .vale import Vale
 
@@ -17,6 +18,7 @@ __all__ = [
     "Prenda",
     "Renta",
     "Abono",
+    "Pedido",
     "Devolucion",
     "Transaccion",
     "Vale",

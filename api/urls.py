@@ -7,6 +7,7 @@ router = DefaultRouter()
 router.register("piezas", views.PiezaViewSet, basename="pieza")
 router.register("prendas", views.PrendaViewSet, basename="prenda")
 router.register("rentas", views.RentaViewSet, basename="renta")
+router.register("pedidos", views.PedidoViewSet, basename="pedido")
 router.register("devoluciones", views.DevolucionViewSet, basename="devolucion")
 router.register("transacciones", views.TransaccionViewSet, basename="transaccion")
 
