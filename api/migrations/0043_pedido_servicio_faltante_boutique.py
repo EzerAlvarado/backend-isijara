@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
                     ("faltante_boutique", "Faltante boutique"),
                 ],
                 default="venta",
-                max_length=16,
+                max_length=32,
             ),
         ),
     ]

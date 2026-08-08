@@ -36,7 +36,7 @@ class Pedido(models.Model):
     )
     estilo_piezas = models.TextField(blank=True, default="")
     servicio = models.CharField(
-        max_length=16,
+        max_length=32,
         choices=Servicio.choices,
         default=Servicio.VENTA,
     )

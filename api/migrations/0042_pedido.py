@@ -52,7 +52,7 @@ class Migration(migrations.Migration):
                             ("premier", "Premier"),
                         ],
                         default="venta",
-                        max_length=16,
+                        max_length=32,
                     ),
                 ),
                 ("fecha_entrega", models.CharField(blank=True, default="", max_length=120)),
