@@ -21,7 +21,7 @@ class Pedido(models.Model):
     class Servicio(models.TextChoices):
         VENTA = "venta", "Venta"
         PREMIER = "premier", "Premier"
-        FALTANTE_BOUTIQUE = "faltante_boutique", "Faltante boutique"
+        FALTANTE_BOUTIQUE = "faltante", "Faltante boutique"
 
     cliente = models.CharField(max_length=255)
     tipo_pedido = models.CharField(

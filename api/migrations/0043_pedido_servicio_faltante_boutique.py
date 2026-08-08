@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
                 choices=[
                     ("venta", "Venta"),
                     ("premier", "Premier"),
-                    ("faltante_boutique", "Faltante boutique"),
+                    ("faltante", "Faltante boutique"),
                 ],
                 default="venta",
                 max_length=32,
