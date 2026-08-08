@@ -118,6 +118,7 @@ class RentaSerializer(serializers.ModelSerializer):
         required=False,
     )
     cancelada = serializers.BooleanField(read_only=True)
+    excluirCorte = serializers.BooleanField(source="excluir_corte", required=False, default=False)
     tipoOperacion = serializers.ChoiceField(
         source="tipo_operacion",
         choices=Renta.TipoOperacion.choices,
@@ -188,6 +189,7 @@ class RentaSerializer(serializers.ModelSerializer):
             "feriaMxn",
             "categoriaVestido",
             "cancelada",
+            "excluirCorte",
             "tipoOperacion",
             "depositoReembolsable",
             "pagare",

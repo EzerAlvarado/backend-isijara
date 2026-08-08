@@ -35,9 +35,15 @@ def _cliente_renta(renta: Renta) -> str:
 
 
 def registrar_transaccion_renta(renta: Renta) -> None:
-    monto = _monto_cobro_renta(renta)
     linea = renta.linea_negocio or LineaNegocio.TRAJES
     categoria = renta.categoria_vestido if linea == LineaNegocio.VESTIDOS else None
+
+    # Rentas capturadas de papel / anticipo cobrado antes: no entran al corte
+    if getattr(renta, "excluir_corte", False):
+        Transaccion.objects.filter(referencia=f"R{renta.pk}", linea_negocio=linea).delete()
+        return
+
+    monto = _monto_cobro_renta(renta)
     if monto <= 0:
         Transaccion.objects.filter(referencia=f"R{renta.pk}", linea_negocio=linea).delete()
         return

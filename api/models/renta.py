@@ -147,6 +147,11 @@ class Renta(models.Model):
         help_text="Solo vestidos: noche, quince o novia",
     )
     cancelada = models.BooleanField(default=False, db_index=True)
+    excluir_corte = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Si True, el anticipo no genera transacción de corte (rentas de papel / cobro previo).",
+    )
     tipo_operacion = models.CharField(
         max_length=15,
         choices=TipoOperacion.choices,
