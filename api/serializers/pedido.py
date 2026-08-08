@@ -40,6 +40,7 @@ class PedidoSerializer(serializers.ModelSerializer):
         required=False,
         default="",
     )
+    anio = serializers.IntegerField(required=False, default=2026, min_value=2000, max_value=2100)
     creadoEn = serializers.DateTimeField(source="creado_en", read_only=True)
     actualizadoEn = serializers.DateTimeField(source="actualizado_en", read_only=True)
 
@@ -55,6 +56,7 @@ class PedidoSerializer(serializers.ModelSerializer):
             "fechaEntrega",
             "comentarios",
             "mesEtiqueta",
+            "anio",
             "orden",
             "creadoEn",
             "actualizadoEn",

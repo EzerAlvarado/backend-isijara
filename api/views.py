@@ -253,10 +253,10 @@ class PedidoViewSet(viewsets.ModelViewSet):
     serializer_class = PedidoSerializer
     permission_classes = [TienePerfilNegocio]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["tipo_pedido", "estatus", "servicio", "mes_etiqueta"]
+    filterset_fields = ["tipo_pedido", "estatus", "servicio", "mes_etiqueta", "anio"]
     search_fields = ["cliente", "estilo_piezas", "comentarios", "fecha_entrega"]
-    ordering_fields = ["mes_etiqueta", "orden", "id", "creado_en"]
-    ordering = ["mes_etiqueta", "orden", "-id"]
+    ordering_fields = ["anio", "mes_etiqueta", "orden", "id", "creado_en"]
+    ordering = ["anio", "mes_etiqueta", "orden", "-id"]
 
 
 @ratelimit(key="user", rate="3/h", method="POST", block=True)

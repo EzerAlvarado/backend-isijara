@@ -48,7 +48,8 @@ class PedidoAdmin(admin.ModelAdmin):
         "servicio",
         "fecha_entrega",
         "mes_etiqueta",
+        "anio",
     )
-    list_filter = ("tipo_pedido", "estatus", "servicio", "mes_etiqueta")
+    list_filter = ("tipo_pedido", "estatus", "servicio", "mes_etiqueta", "anio")
     search_fields = ("cliente", "estilo_piezas", "comentarios")
 

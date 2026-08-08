@@ -48,12 +48,16 @@ class Pedido(models.Model):
         default="",
         help_text="Etiqueta de mes para agrupar (ej. JULIO). Vacío = sin grupo.",
     )
+    anio = models.PositiveIntegerField(
+        default=2026,
+        help_text="Año del grupo (ej. 2026, 2027).",
+    )
     orden = models.PositiveIntegerField(default=0)
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["mes_etiqueta", "orden", "-id"]
+        ordering = ["anio", "mes_etiqueta", "orden", "-id"]
 
     def __str__(self) -> str:
         return f"{self.cliente} · {self.get_tipo_pedido_display()}"
