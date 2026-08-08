@@ -26,6 +26,12 @@ class Transaccion(models.Model):
         help_text="Solo vestidos: noche, quince o boda.",
     )
     creado_en = models.DateTimeField(auto_now_add=True)
+    anulada = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Si es True, no cuenta en el corte (caso excepcional).",
+    )
+    anulada_en = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         ordering = ["-timestamp"]

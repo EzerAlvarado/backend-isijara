@@ -8,6 +8,7 @@ from api.permissions import TienePerfilNegocio, categoria_vestido_usuario, linea
 from api.serializers.corte import CorteDiaSerializer, parse_fecha_query, parse_turno_query
 from api.serializers.transaccion import TransaccionSerializer
 from api.services.corte import (
+    anular_transaccion,
     calcular_resumen,
     cerrar_corte,
     corte_incluye_manana,
@@ -258,6 +259,41 @@ def corte_gasto(request):
             **_payload_corte(fecha, linea, corte.turno, categoria),
         },
         status=status.HTTP_201_CREATED,
+    )
+
+
+@ratelimit(key="user", rate="30/h", method="POST", block=True)
+@api_view(["POST"])
+@permission_classes([TienePerfilNegocio])
+def corte_anular_transaccion(request, tx_id):
+    linea = linea_negocio_usuario(request.user)
+    categoria = _parse_categoria_query(
+        request.data.get("categoria") or request.query_params.get("categoria"),
+        linea,
+        request.user,
+    )
+    try:
+        fecha = parse_fecha_query(request.data.get("fecha") or request.query_params.get("fecha"))
+        turno = parse_turno_query(request.data.get("turno") or request.query_params.get("turno"))
+    except Exception as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    corte = obtener_o_crear_corte(fecha, linea, turno, categoria)
+    try:
+        tx = Transaccion.objects.get(pk=tx_id, linea_negocio=linea)
+    except Transaccion.DoesNotExist:
+        return Response({"detail": "Movimiento no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        tx = anular_transaccion(corte, tx)
+    except ValueError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(
+        {
+            "transaccion": TransaccionSerializer(tx).data,
+            **_payload_corte(fecha, linea, corte.turno, categoria),
+        },
     )
 
 

@@ -19,6 +19,11 @@ urlpatterns = [
     path("corte/", views_corte.corte_dia, name="corte-dia"),
     path("corte/cierre/", views_corte.corte_cierre, name="corte-cierre"),
     path("corte/gasto/", views_corte.corte_gasto, name="corte-gasto"),
+    path(
+        "corte/transacciones/<int:tx_id>/anular/",
+        views_corte.corte_anular_transaccion,
+        name="corte-anular-transaccion",
+    ),
     path("corte/vales/<int:vale_id>/reponer/", views_corte.corte_reponer_vale, name="corte-reponer-vale"),
     path("finanzas/", views_finanzas.configuracion_finanzas, name="finanzas"),
     path("test/limpiar/", views.limpiar_datos_test, name="limpiar-datos-test"),

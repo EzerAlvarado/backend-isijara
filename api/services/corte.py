@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from api.models import Abono, CorteDia, Devolucion, LineaNegocio, MetodoPago, Renta, Transaccion, TurnoCorte
+from api.models import Abono, CorteDia, Devolucion, LineaNegocio, MetodoPago, Renta, Transaccion, TurnoCorte, Vale
 from api.services.conteo_caja import normalizar_conteo, totales_conteo
 from api.services.finanzas import obtener_fondo_feria, obtener_tipo_cambio
 
@@ -34,18 +34,32 @@ def _cliente_renta(renta: Renta) -> str:
     return ""
 
 
+def _tx_anulada(referencia: str, linea: str) -> bool:
+    return Transaccion.objects.filter(
+        referencia=referencia,
+        linea_negocio=linea,
+        anulada=True,
+    ).exists()
+
+
 def registrar_transaccion_renta(renta: Renta) -> None:
     linea = renta.linea_negocio or LineaNegocio.TRAJES
     categoria = renta.categoria_vestido if linea == LineaNegocio.VESTIDOS else None
+    referencia = f"R{renta.pk}"
 
     # Rentas capturadas de papel / anticipo cobrado antes: no entran al corte
     if getattr(renta, "excluir_corte", False):
-        Transaccion.objects.filter(referencia=f"R{renta.pk}", linea_negocio=linea).delete()
+        if not _tx_anulada(referencia, linea):
+            Transaccion.objects.filter(referencia=referencia, linea_negocio=linea).delete()
         return
 
     monto = _monto_cobro_renta(renta)
     if monto <= 0:
-        Transaccion.objects.filter(referencia=f"R{renta.pk}", linea_negocio=linea).delete()
+        if not _tx_anulada(referencia, linea):
+            Transaccion.objects.filter(referencia=referencia, linea_negocio=linea).delete()
+        return
+
+    if _tx_anulada(referencia, linea):
         return
 
     pago = renta.metodo_pago or MetodoPago.PESOS
@@ -55,7 +69,7 @@ def registrar_transaccion_renta(renta: Renta) -> None:
         pago = MetodoPago.PESOS
 
     Transaccion.objects.update_or_create(
-        referencia=f"R{renta.pk}",
+        referencia=referencia,
         linea_negocio=linea,
         defaults={
             "timestamp": renta.creado_en or timezone.now(),
@@ -72,12 +86,17 @@ def registrar_transaccion_multa(devolucion: Devolucion) -> None:
     categoria = None
     if devolucion.renta_id and linea == LineaNegocio.VESTIDOS:
         categoria = devolucion.renta.categoria_vestido
+    referencia = f"M{devolucion.pk}"
     if devolucion.multa_perdonada or devolucion.penalizacion <= 0:
-        Transaccion.objects.filter(referencia=f"M{devolucion.pk}", linea_negocio=linea).delete()
+        if not _tx_anulada(referencia, linea):
+            Transaccion.objects.filter(referencia=referencia, linea_negocio=linea).delete()
+        return
+
+    if _tx_anulada(referencia, linea):
         return
 
     Transaccion.objects.update_or_create(
-        referencia=f"M{devolucion.pk}",
+        referencia=referencia,
         linea_negocio=linea,
         defaults={
             "timestamp": timezone.now(),
@@ -93,8 +112,13 @@ def registrar_transaccion_abono(abono: Abono) -> None:
     renta = abono.renta
     linea = renta.linea_negocio or LineaNegocio.TRAJES
     categoria = renta.categoria_vestido if linea == LineaNegocio.VESTIDOS else None
+    referencia = f"A{abono.pk}"
     if abono.monto <= 0:
-        Transaccion.objects.filter(referencia=f"A{abono.pk}", linea_negocio=linea).delete()
+        if not _tx_anulada(referencia, linea):
+            Transaccion.objects.filter(referencia=referencia, linea_negocio=linea).delete()
+        return
+
+    if _tx_anulada(referencia, linea):
         return
 
     pago = abono.metodo_pago or MetodoPago.PESOS
@@ -102,7 +126,7 @@ def registrar_transaccion_abono(abono: Abono) -> None:
         pago = MetodoPago.PESOS
 
     Transaccion.objects.update_or_create(
-        referencia=f"A{abono.pk}",
+        referencia=referencia,
         linea_negocio=linea,
         defaults={
             "timestamp": abono.creado_en,
@@ -119,12 +143,17 @@ def registrar_transaccion_danos(devolucion: Devolucion) -> None:
     categoria = None
     if devolucion.renta_id and linea == LineaNegocio.VESTIDOS:
         categoria = devolucion.renta.categoria_vestido
+    referencia = f"D{devolucion.pk}"
     if devolucion.cargo_danos <= 0:
-        Transaccion.objects.filter(referencia=f"D{devolucion.pk}", linea_negocio=linea).delete()
+        if not _tx_anulada(referencia, linea):
+            Transaccion.objects.filter(referencia=referencia, linea_negocio=linea).delete()
+        return
+
+    if _tx_anulada(referencia, linea):
         return
 
     Transaccion.objects.update_or_create(
-        referencia=f"D{devolucion.pk}",
+        referencia=referencia,
         linea_negocio=linea,
         defaults={
             "timestamp": timezone.now(),
@@ -340,6 +369,7 @@ def transacciones_del_corte(corte: CorteDia):
         timestamp__range=(inicio, fin),
         linea_negocio=corte.linea_negocio,
         categoria_vestido=corte.categoria_vestido,
+        anulada=False,
     ).order_by("-timestamp")
 
 
@@ -348,7 +378,38 @@ def transacciones_del_dia(fecha: date, linea_negocio: str):
     return Transaccion.objects.filter(
         timestamp__range=(inicio, fin),
         linea_negocio=linea_negocio,
+        anulada=False,
     ).order_by("-timestamp")
+
+
+def anular_transaccion(corte: CorteDia, tx: Transaccion) -> Transaccion:
+    """Saca un movimiento del corte de forma permanente (caso excepcional)."""
+    if corte.cerrado:
+        raise ValueError("No se pueden anular movimientos en un corte cerrado.")
+    if tx.anulada:
+        raise ValueError("Este movimiento ya fue anulado.")
+    if tx.linea_negocio != corte.linea_negocio:
+        raise ValueError("El movimiento no corresponde a esta línea de negocio.")
+    if tx.categoria_vestido != corte.categoria_vestido:
+        raise ValueError("El movimiento no corresponde a esta categoría.")
+
+    inicio, fin = _rango_transacciones_corte(corte)
+    if not (inicio <= tx.timestamp <= fin):
+        raise ValueError("El movimiento no pertenece a este turno de corte.")
+
+    from api.services.vales import es_gasto_fondo, reponer_vale
+
+    with transaction.atomic():
+        if es_gasto_fondo(tx.referencia):
+            vale = Vale.objects.filter(transaccion=tx).first()
+            if vale and vale.estatus == Vale.Estatus.PENDIENTE:
+                reponer_vale(corte, vale, ajustar_fondo=True)
+
+        tx.anulada = True
+        tx.anulada_en = timezone.now()
+        tx.save(update_fields=["anulada", "anulada_en"])
+
+    return tx
 
 
 def multas_tardias_activas(linea_negocio: str, categoria: str | None = None):
