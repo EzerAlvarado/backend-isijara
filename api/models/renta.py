@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 from .common import celda_vacia
 from .linea_negocio import LineaNegocio
@@ -169,7 +170,10 @@ class Renta(models.Model):
         default=0,
         help_text="Monto del pagaré (BUENO POR $)",
     )
-    creado_en = models.DateTimeField(auto_now_add=True)
+    creado_en = models.DateTimeField(
+        default=timezone.now,
+        help_text="Fecha y hora en que se registró la renta (editable).",
+    )
     actualizado_en = models.DateTimeField(auto_now=True)
 
     class Meta:

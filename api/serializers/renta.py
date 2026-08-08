@@ -119,6 +119,11 @@ class RentaSerializer(serializers.ModelSerializer):
     )
     cancelada = serializers.BooleanField(read_only=True)
     excluirCorte = serializers.BooleanField(source="excluir_corte", required=False, default=False)
+    creadoEn = serializers.DateTimeField(
+        source="creado_en",
+        required=False,
+        allow_null=True,
+    )
     tipoOperacion = serializers.ChoiceField(
         source="tipo_operacion",
         choices=Renta.TipoOperacion.choices,
@@ -193,6 +198,7 @@ class RentaSerializer(serializers.ModelSerializer):
             "tipoOperacion",
             "depositoReembolsable",
             "pagare",
+            "creadoEn",
             "totalCobrar",
             "totalPagado",
             "totalAbonado",
