@@ -29,7 +29,11 @@ def _resolver_monto_abono(
 
         recibido_mxn = mxn + usd * tc
         limite = restante_mxn(renta)
-        aplicado_mxn = min(recibido_mxn, limite)
+        # Si por redondeo de TC quedan <= $1, se considera saldado completo.
+        if recibido_mxn > 0 and limite - recibido_mxn <= Decimal("1.00"):
+            aplicado_mxn = limite
+        else:
+            aplicado_mxn = min(recibido_mxn, limite)
         if aplicado_mxn <= 0:
             raise ValueError("El abono debe ser mayor a cero.")
 

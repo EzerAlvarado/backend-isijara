@@ -156,6 +156,20 @@ class RentaViewSet(FiltrarPorLineaMixin, viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance.cancelada:
+            return Response(
+                {
+                    "detail": (
+                        "Solo se pueden quitar rentas canceladas. "
+                        "Primero cancélala y luego quita el registro."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
+
     def perform_destroy(self, instance):
         ids = [
             i
@@ -166,6 +180,7 @@ class RentaViewSet(FiltrarPorLineaMixin, viewsets.ModelViewSet):
             )
             if i
         ]
+        # El dinero del corte (Transaccion) se conserva a propósito.
         instance.delete()
         for pieza_id in ids:
             liberar_pieza(pieza_id)

@@ -13,9 +13,17 @@ def monto_en_pesos(monto: Decimal, pago: str, linea_negocio: str) -> Decimal:
 
 
 def monto_inicial_pagado_mxn(renta: Renta) -> Decimal:
-    if renta.metodo_pago == MetodoPago.MIXTO:
+    """Equivalente en MXN del cobro inicial.
+
+    En DLLS/MIXTO se usa el efectivo recibido (pago_efectivo_*) cuando existe,
+    para que un pago en dólares con feria no quede “casi pagado” por redondeo
+    del anticipo guardado en USD.
+    """
+    mxn = Decimal(renta.pago_efectivo_mxn or 0)
+    usd = Decimal(renta.pago_efectivo_usd or 0)
+    if renta.metodo_pago in (MetodoPago.MIXTO, MetodoPago.DLLS) and (mxn > 0 or usd > 0):
         tc = obtener_tipo_cambio(renta.linea_negocio)
-        return Decimal(renta.pago_efectivo_mxn) + Decimal(renta.pago_efectivo_usd) * tc
+        return mxn + usd * tc
     if renta.metodo_pago == MetodoPago.DLLS:
         return monto_en_pesos(renta.anticipo, MetodoPago.DLLS, renta.linea_negocio)
     return Decimal(renta.anticipo)
@@ -39,7 +47,8 @@ def restante_mxn(renta: Renta) -> Decimal:
 
 
 def esta_pagada(renta: Renta) -> bool:
-    return restante_mxn(renta) <= Decimal("0.01")
+    # Hasta $1 MXN por redondeo de tipo de cambio (USD ↔ MXN).
+    return restante_mxn(renta) <= Decimal("1.00")
 
 
 def etiqueta_operacion(tipo_operacion: str) -> str:
