@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from corsheaders.defaults import default_headers
 from decouple import Csv, config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -121,12 +122,24 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# CORS — frontend Vite en :5173
-CORS_ALLOWED_ORIGINS = config(
-    "CORS_ALLOWED_ORIGINS",
-    default="http://localhost:5173,http://127.0.0.1:5173",
-    cast=Csv(),
+# CORS — orígenes del frontend (local + producción vía env)
+_cors_origins = list(
+    config(
+        "CORS_ALLOWED_ORIGINS",
+        default="http://localhost:5173,http://127.0.0.1:5173",
+        cast=Csv(),
+    )
 )
+
+# Atajo: FRONTEND_URL=https://tu-dominio.com (sin / al final)
+for _url in config("FRONTEND_URL", default="", cast=Csv()):
+    _origin = _url.strip().rstrip("/")
+    if _origin and _origin not in _cors_origins:
+        _cors_origins.append(_origin)
+
+CORS_ALLOWED_ORIGINS = _cors_origins
+CORS_ALLOW_HEADERS = (*default_headers, "cache-control")
+CSRF_TRUSTED_ORIGINS = [o for o in _cors_origins if o.startswith("https://")]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
