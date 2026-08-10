@@ -99,6 +99,28 @@ class CorteValesPropagationTests(TestCase):
         self.assertEqual(resumen["valesPendientesTotal"], 0.0)
         self.assertEqual(resumen["valesEsperadosFondo"], 732.0)
 
+    def test_esperado_cierre_no_suma_vales_dos_veces(self):
+        """Efectivo + vales en conteo deben igualar fondo_inicial, no fondo + vales."""
+        from api.services.conteo_caja import conteo_equivalente_mxn
+        from api.services.finanzas import obtener_tipo_cambio
+
+        corte = CorteDia.objects.create(
+            fecha=self.fecha,
+            turno=TurnoCorte.MANANA,
+            linea_negocio=LineaNegocio.TRAJES,
+            fondo_inicial=Decimal("2000"),
+            conteo_fondo=self._conteo_fondo_con_vales(200, billetes=1800),
+            conteo_caja=normalizar_conteo(CONTEO_VACIO),
+            cerrado=True,
+        )
+        resumen = calcular_resumen(corte)
+        tc = obtener_tipo_cambio(LineaNegocio.TRAJES)
+        contado_fondo = conteo_equivalente_mxn(corte.conteo_fondo, tc)
+        esperado = resumen["fondoInicial"] + resumen["cajaDelDia"]
+        self.assertAlmostEqual(contado_fondo, 2000.0, places=2)
+        self.assertAlmostEqual(esperado, 2000.0, places=2)
+        self.assertAlmostEqual(contado_fondo - esperado, 0.0, places=2)
+
     def test_cerrar_manana_preserva_vales_en_conteo_y_propaga(self):
         manana = CorteDia.objects.create(
             fecha=self.fecha,

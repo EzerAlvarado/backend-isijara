@@ -70,15 +70,8 @@ def _payload_corte(fecha, linea_negocio, turno=None, categoria=None):
         totales_resumen = totales_cierre
         contado_mxn = totales_cierre["mxnTotal"] + totales_cierre["usdTotal"] * tc
 
-    vales_esperados_fondo = resumen.get(
-        "valesEsperadosFondo",
-        max(resumen["valesPendientesTotal"], totales_fondo.get("mxnVales", 0)),
-    )
-    esperado_total = (
-        resumen["fondoFisico"]
-        + resumen["cajaDelDia"]
-        + vales_esperados_fondo
-    )
+    # El fondo esperado es el monto de referencia; los vales en el conteo cubren efectivo faltante.
+    esperado_total = resumen["fondoInicial"] + resumen["cajaDelDia"]
     vales = list(vales_pendientes(linea_negocio, categoria))
     return {
         "fecha": fecha.isoformat(),
