@@ -1,3 +1,4 @@
+from api.models import Devolucion, Renta
 from api.permissions import linea_negocio_usuario
 
 
@@ -28,5 +29,7 @@ class FiltrarDevolucionPorLineaMixin:
         qs = super().get_queryset()
         linea = self.get_linea_negocio()
         if linea:
-            return qs.filter(renta__linea_negocio=linea)
+            return qs.filter(renta__linea_negocio=linea).exclude(
+                renta__tipo_operacion=Renta.TipoOperacion.VENTA,
+            )
         return qs.none()

@@ -11,6 +11,11 @@ from api.services.devoluciones import calcular_penalizacion
 DIAS_RENTA_DEFAULT = 3
 
 
+def renta_requiere_devolucion(renta: Renta) -> bool:
+    """Las ventas no generan devolución: la prenda se vende, no se regresa."""
+    return renta.tipo_operacion != Renta.TipoOperacion.VENTA
+
+
 def parse_fecha_mx(fecha: str) -> date | None:
     if not fecha:
         return None
@@ -288,6 +293,10 @@ def _estatus_devolucion_desde_renta(renta: Renta, fecha_limite: date) -> str:
 
 
 def sincronizar_devolucion(renta: Renta) -> None:
+    if not renta_requiere_devolucion(renta):
+        Devolucion.objects.filter(renta=renta).delete()
+        return
+
     ids = _ids_piezas_renta(renta)
     if not ids:
         Devolucion.objects.filter(renta=renta).delete()
@@ -386,7 +395,7 @@ def sincronizar_renta_inventario(renta: Renta, renta_anterior: Renta | None = No
 
     actualizar_fecha_salio_renta(renta)
 
-    if _ids_piezas_renta(renta):
+    if _ids_piezas_renta(renta) and renta_requiere_devolucion(renta):
         sincronizar_devolucion(renta)
     else:
         Devolucion.objects.filter(renta=renta).delete()

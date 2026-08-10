@@ -29,7 +29,7 @@ def marcar_devoluciones_retrasadas(linea_negocio: str | None = None) -> int:
     qs = Devolucion.objects.filter(
         estatus=Devolucion.Estatus.AFUERA,
         fecha_limite__lt=hoy,
-    )
+    ).exclude(renta__tipo_operacion=Renta.TipoOperacion.VENTA)
     if linea_negocio:
         qs = qs.filter(renta__linea_negocio=linea_negocio)
     return qs.update(estatus=Devolucion.Estatus.RETRASADO)
@@ -42,7 +42,7 @@ def actualizar_penalizaciones_retrasadas(linea_negocio: str | None = None) -> in
 
     qs = Devolucion.objects.filter(estatus=Devolucion.Estatus.RETRASADO).select_related(
         "renta"
-    )
+    ).exclude(renta__tipo_operacion=Renta.TipoOperacion.VENTA)
     if linea_negocio:
         qs = qs.filter(renta__linea_negocio=linea_negocio)
 
