@@ -60,6 +60,18 @@ def _ids_piezas_renta_obj(renta: Renta) -> list[int]:
     return [i for i in (renta.pieza_saco_id, renta.pieza_chaleco_id, renta.pieza_pantalon_id) if i]
 
 
+def renta_bloquea_disponibilidad(renta: Renta) -> bool:
+    """False si la renta ya devolvió las piezas o no aplica devolución (venta)."""
+    if renta.cancelada:
+        return False
+    if not renta_requiere_devolucion(renta):
+        return False
+    dev = renta.devoluciones.first()
+    if dev and dev.estatus == Devolucion.Estatus.REGRESADO:
+        return False
+    return True
+
+
 def conflicto_pieza_en_rentas(
     pieza_id: int,
     fecha_salida: str,
@@ -73,14 +85,22 @@ def conflicto_pieza_en_rentas(
     semana_sig = _semana_desplazada(semana_ref, 1)
     aviso_siguiente = None
 
-    qs = Renta.objects.filter(linea_negocio=linea_negocio, cancelada=False).filter(
-        Q(pieza_saco_id=pieza_id) | Q(pieza_chaleco_id=pieza_id) | Q(pieza_pantalon_id=pieza_id),
+    qs = (
+        Renta.objects.filter(linea_negocio=linea_negocio, cancelada=False)
+        .filter(
+            Q(pieza_saco_id=pieza_id)
+            | Q(pieza_chaleco_id=pieza_id)
+            | Q(pieza_pantalon_id=pieza_id),
+        )
+        .prefetch_related("devoluciones")
     )
     if excluir_renta_id:
         qs = qs.exclude(pk=excluir_renta_id)
 
     for renta in qs:
         if pieza_id not in _ids_piezas_renta_obj(renta):
+            continue
+        if not renta_bloquea_disponibilidad(renta):
             continue
 
         sem_r = semana_key_desde_fecha_salida(renta.fecha_salida) or renta.semana_inicio

@@ -146,6 +146,7 @@ class RentaSerializer(serializers.ModelSerializer):
     restante = serializers.SerializerMethodField()
     pagado = serializers.SerializerMethodField()
     abonos = AbonoSerializer(many=True, read_only=True)
+    devolucionEstatus = serializers.SerializerMethodField()
 
     class Meta:
         model = Renta
@@ -205,6 +206,7 @@ class RentaSerializer(serializers.ModelSerializer):
             "restante",
             "pagado",
             "abonos",
+            "devolucionEstatus",
         ]
 
     def get_totalCobrar(self, obj: Renta) -> float:
@@ -221,6 +223,11 @@ class RentaSerializer(serializers.ModelSerializer):
 
     def get_pagado(self, obj: Renta) -> bool:
         return esta_pagada(obj)
+
+    def get_devolucionEstatus(self, obj: Renta) -> str | None:
+        for dev in obj.devoluciones.all():
+            return dev.estatus
+        return None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

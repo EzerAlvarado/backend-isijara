@@ -90,7 +90,7 @@ class PrendaViewSet(FiltrarPorLineaMixin, viewsets.ModelViewSet):
 class RentaViewSet(FiltrarPorLineaMixin, viewsets.ModelViewSet):
     queryset = Renta.objects.select_related(
         "pieza_saco", "pieza_chaleco", "pieza_pantalon"
-    ).prefetch_related("abonos")
+    ).prefetch_related("abonos", "devoluciones")
     serializer_class = RentaSerializer
     permission_classes = [TienePerfilNegocio]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
