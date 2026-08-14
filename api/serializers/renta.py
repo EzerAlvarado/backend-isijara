@@ -343,10 +343,21 @@ class RentaSerializer(serializers.ModelSerializer):
 
 
 class MultaRentaSerializer(serializers.Serializer):
-    cargoDanos = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
+    cargoDanos = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=0,
+        required=False,
+        default=0,
+    )
     notaDanos = serializers.CharField(required=False, allow_blank=True, default="")
+    quitar = serializers.BooleanField(required=False, default=False)
 
     def validate(self, attrs):
+        if attrs.get("quitar"):
+            attrs["cargoDanos"] = 0
+            attrs["notaDanos"] = ""
+            return attrs
         cargo = attrs.get("cargoDanos") or 0
         nota = (attrs.get("notaDanos") or "").strip()
         if cargo <= 0 and not nota:
