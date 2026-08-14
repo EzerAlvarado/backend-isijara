@@ -2,6 +2,7 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from api.models import Abono, CorteDia, Devolucion, LineaNegocio, MetodoPago, Renta, Transaccion, TurnoCorte, Vale
@@ -40,6 +41,25 @@ def _tx_anulada(referencia: str, linea: str) -> bool:
         linea_negocio=linea,
         anulada=True,
     ).exists()
+
+
+def _qs_multa_renta(renta_pk: int, linea: str):
+    """Movimientos de multa de una renta: MR{id} y MR{id}-2, MR{id}-3…"""
+    base = f"MR{renta_pk}"
+    return Transaccion.objects.filter(linea_negocio=linea).filter(
+        Q(referencia=base) | Q(referencia__startswith=f"{base}-")
+    )
+
+
+def _siguiente_ref_multa_renta(renta_pk: int, linea: str) -> str:
+    base = f"MR{renta_pk}"
+    usadas = set(_qs_multa_renta(renta_pk, linea).values_list("referencia", flat=True))
+    if base not in usadas:
+        return base
+    n = 2
+    while f"{base}-{n}" in usadas:
+        n += 1
+    return f"{base}-{n}"
 
 
 def registrar_transaccion_renta(renta: Renta) -> None:
@@ -168,25 +188,30 @@ def registrar_transaccion_danos(devolucion: Devolucion) -> None:
 def registrar_transaccion_multa_renta(renta: Renta) -> None:
     linea = renta.linea_negocio or LineaNegocio.TRAJES
     categoria = renta.categoria_vestido if linea == LineaNegocio.VESTIDOS else None
-    referencia = f"MR{renta.pk}"
+    qs = _qs_multa_renta(renta.pk, linea)
+
     if renta.cargo_danos <= 0:
-        if not _tx_anulada(referencia, linea):
-            Transaccion.objects.filter(referencia=referencia, linea_negocio=linea).delete()
+        qs.filter(anulada=False).delete()
         return
 
-    if _tx_anulada(referencia, linea):
+    activa = qs.filter(anulada=False).order_by("-id").first()
+    defaults = {
+        "timestamp": timezone.now(),
+        "cliente": _cliente_renta(renta) or f"RENTA #{renta.pk}",
+        "pago": MetodoPago.PESOS,
+        "monto": renta.cargo_danos,
+        "categoria_vestido": categoria,
+    }
+    if activa:
+        for campo, valor in defaults.items():
+            setattr(activa, campo, valor)
+        activa.save(update_fields=[*defaults.keys()])
         return
 
-    Transaccion.objects.update_or_create(
-        referencia=referencia,
+    Transaccion.objects.create(
+        referencia=_siguiente_ref_multa_renta(renta.pk, linea),
         linea_negocio=linea,
-        defaults={
-            "timestamp": timezone.now(),
-            "cliente": _cliente_renta(renta) or f"RENTA #{renta.pk}",
-            "pago": MetodoPago.PESOS,
-            "monto": renta.cargo_danos,
-            "categoria_vestido": categoria,
-        },
+        **defaults,
     )
 
 
