@@ -20,6 +20,8 @@ def concepto_transaccion(tx: Transaccion) -> str:
     ref = (tx.referencia or "").upper()
     if ref.startswith("G"):
         return "Vale"
+    if ref.startswith("MR"):
+        return "Multa"
     if ref.startswith("M"):
         return "Multa"
     if ref.startswith("D"):

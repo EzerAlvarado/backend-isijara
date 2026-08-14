@@ -113,6 +113,13 @@ class Renta(models.Model):
     fondo = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     anticipo = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     multa = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    cargo_danos = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Multa por daños agregada después (p. ej. ya marcada como entregada).",
+    )
+    nota_danos = models.TextField(blank=True)
     metodo_pago = models.CharField(
         max_length=20,
         choices=MetodoPago.choices,

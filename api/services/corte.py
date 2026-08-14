@@ -165,6 +165,31 @@ def registrar_transaccion_danos(devolucion: Devolucion) -> None:
     )
 
 
+def registrar_transaccion_multa_renta(renta: Renta) -> None:
+    linea = renta.linea_negocio or LineaNegocio.TRAJES
+    categoria = renta.categoria_vestido if linea == LineaNegocio.VESTIDOS else None
+    referencia = f"MR{renta.pk}"
+    if renta.cargo_danos <= 0:
+        if not _tx_anulada(referencia, linea):
+            Transaccion.objects.filter(referencia=referencia, linea_negocio=linea).delete()
+        return
+
+    if _tx_anulada(referencia, linea):
+        return
+
+    Transaccion.objects.update_or_create(
+        referencia=referencia,
+        linea_negocio=linea,
+        defaults={
+            "timestamp": timezone.now(),
+            "cliente": _cliente_renta(renta) or f"RENTA #{renta.pk}",
+            "pago": MetodoPago.PESOS,
+            "monto": renta.cargo_danos,
+            "categoria_vestido": categoria,
+        },
+    )
+
+
 def sincronizar_transacciones_dia(fecha: date, linea_negocio: str) -> None:
     inicio, fin = _inicio_fin_dia(fecha)
     with transaction.atomic():
@@ -180,6 +205,12 @@ def sincronizar_transacciones_dia(fecha: date, linea_negocio: str) -> None:
         ):
             registrar_transaccion_multa(dev)
             registrar_transaccion_danos(dev)
+
+        for renta in Renta.objects.filter(
+            cargo_danos__gt=0,
+            linea_negocio=linea_negocio,
+        ):
+            registrar_transaccion_multa_renta(renta)
 
 
 def _corte_turno(fecha: date, linea_negocio: str, turno: str, categoria: str | None = None) -> CorteDia | None:

@@ -501,7 +501,7 @@ def procesar_devolucion(devolucion: Devolucion) -> None:
         marcar_prendas_arrugado_renta(renta)
 
 
-def _marcar_pieza_mantenimiento(pieza_id: int | None, nota: str) -> None:
+def _marcar_pieza_mantenimiento(pieza_id: int | None, nota: str, origen: str = "devolución") -> None:
     if not pieza_id:
         return
     pieza = Pieza.objects.filter(pk=pieza_id).first()
@@ -510,15 +510,28 @@ def _marcar_pieza_mantenimiento(pieza_id: int | None, nota: str) -> None:
 
     nota_limpia = (nota or "").strip()
     if nota_limpia:
-        prefijo = f"Mantenimiento (devolución): {nota_limpia}"
+        prefijo = f"Mantenimiento ({origen}): {nota_limpia}"
         detalles = prefijo if not pieza.detalles else f"{pieza.detalles} | {prefijo}"
     else:
-        detalles = pieza.detalles or "Mantenimiento (devolución)"
+        detalles = pieza.detalles or f"Mantenimiento ({origen})"
 
     Pieza.objects.filter(pk=pieza_id).update(
         estatus=Pieza.Estatus.MANTENIMIENTO,
         detalles=detalles[:255],
     )
+
+
+def aplicar_multa_danos_renta(renta: Renta, cargo, nota: str) -> Renta:
+    """Registra multa por daños en una renta ya entregada (o sin revisar)."""
+    renta.cargo_danos = cargo
+    renta.nota_danos = (nota or "").strip()
+    renta.save(update_fields=["cargo_danos", "nota_danos", "actualizado_en"])
+
+    hay_danos = renta.cargo_danos > 0 or bool(renta.nota_danos)
+    if hay_danos:
+        for pieza_id in _ids_piezas_renta(renta):
+            _marcar_pieza_mantenimiento(pieza_id, renta.nota_danos, origen="multa")
+    return renta
 
 
 _ESTATUS_CELDA_PIEZA = {

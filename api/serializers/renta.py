@@ -140,6 +140,13 @@ class RentaSerializer(serializers.ModelSerializer):
         required=False,
         default=0,
     )
+    cargoDanos = serializers.DecimalField(
+        source="cargo_danos",
+        max_digits=10,
+        decimal_places=2,
+        read_only=True,
+    )
+    notaDanos = serializers.CharField(source="nota_danos", read_only=True)
     totalCobrar = serializers.SerializerMethodField()
     totalPagado = serializers.SerializerMethodField()
     totalAbonado = serializers.SerializerMethodField()
@@ -200,6 +207,8 @@ class RentaSerializer(serializers.ModelSerializer):
             "depositoReembolsable",
             "pagare",
             "creadoEn",
+            "cargoDanos",
+            "notaDanos",
             "totalCobrar",
             "totalPagado",
             "totalAbonado",
@@ -330,4 +339,19 @@ class RentaSerializer(serializers.ModelSerializer):
                 if msg:
                     raise serializers.ValidationError({"piezaSacoId": msg})
 
+        return attrs
+
+
+class MultaRentaSerializer(serializers.Serializer):
+    cargoDanos = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
+    notaDanos = serializers.CharField(required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        cargo = attrs.get("cargoDanos") or 0
+        nota = (attrs.get("notaDanos") or "").strip()
+        if cargo <= 0 and not nota:
+            raise serializers.ValidationError(
+                "Indica el monto de la multa o una nota de daños."
+            )
+        attrs["notaDanos"] = nota
         return attrs

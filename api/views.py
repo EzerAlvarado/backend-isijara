@@ -28,14 +28,17 @@ from api.serializers import (
     TransaccionSerializer,
 )
 from api.serializers.abono import AbonoCreateSerializer, AbonoSerializer
+from api.serializers.renta import MultaRentaSerializer
 from api.services.abonos import crear_abono
 from api.services.corte import (
     registrar_transaccion_danos,
     registrar_transaccion_multa,
+    registrar_transaccion_multa_renta,
     registrar_transaccion_renta,
 )
 from api.services.devoluciones import calcular_penalizacion, sincronizar_estado_devoluciones
 from api.services.inventario_renta import (
+    aplicar_multa_danos_renta,
     cancelar_renta,
     liberar_pieza,
     marcar_renta_salio,
@@ -155,6 +158,25 @@ class RentaViewSet(FiltrarPorLineaMixin, viewsets.ModelViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @action(detail=True, methods=["post"], url_path="multa")
+    def multa(self, request, pk=None):
+        renta = self.get_object()
+        if renta.cancelada:
+            return Response(
+                {"detail": "No se puede agregar multa a una renta cancelada."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        ser = MultaRentaSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        aplicar_multa_danos_renta(
+            renta,
+            ser.validated_data["cargoDanos"],
+            ser.validated_data.get("notaDanos") or "",
+        )
+        renta.refresh_from_db()
+        registrar_transaccion_multa_renta(renta)
+        return Response(self.get_serializer(renta).data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
