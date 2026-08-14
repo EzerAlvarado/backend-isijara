@@ -58,4 +58,5 @@ def etiqueta_operacion(tipo_operacion: str) -> str:
         Renta.TipoOperacion.PREMIER: "Premier",
         Renta.TipoOperacion.SESION_FOTOS: "Sesión de fotos",
         Renta.TipoOperacion.PATROCINIO: "Patrocinio",
+        Renta.TipoOperacion.PAQUETE_PREMIUM: "Paquete Premium",
     }.get(tipo_operacion, "Renta")

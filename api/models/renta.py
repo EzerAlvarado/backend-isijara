@@ -27,6 +27,7 @@ class Renta(models.Model):
         PREMIER = "premier", "Premier (texto morado)"
         SESION_FOTOS = "sesion_fotos", "Sesión de fotos"
         PATROCINIO = "patrocinio", "Patrocinio"
+        PAQUETE_PREMIUM = "paquete_premium", "Paquete Premium"
 
     class CategoriaVestido(models.TextChoices):
         NOCHE = "noche", "Noche"
@@ -39,6 +40,7 @@ class Renta(models.Model):
         PREMIER = "premier", "Premier"
         SESION_FOTOS = "sesion_fotos", "Sesión de fotos"
         PATROCINIO = "patrocinio", "Patrocinio"
+        PAQUETE_PREMIUM = "paquete_premium", "Paquete Premium"
 
     color = models.JSONField(default=celda_vacia)
     saco = models.JSONField(default=celda_vacia)
@@ -154,7 +156,7 @@ class Renta(models.Model):
         help_text="Si True, el anticipo no genera transacción de corte (rentas de papel / cobro previo).",
     )
     tipo_operacion = models.CharField(
-        max_length=15,
+        max_length=20,
         choices=TipoOperacion.choices,
         default=TipoOperacion.RENTA,
         db_index=True,

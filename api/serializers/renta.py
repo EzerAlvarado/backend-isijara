@@ -278,6 +278,16 @@ class RentaSerializer(serializers.ModelSerializer):
             attrs["pago_efectivo_usd"] = 0
             attrs["feria_mxn"] = 0
 
+        if tipo_op in (
+            Renta.TipoOperacion.SESION_FOTOS,
+            Renta.TipoOperacion.PAQUETE_PREMIUM,
+        ) and categoria != Renta.CategoriaVestido.QUINCE:
+            raise serializers.ValidationError(
+                {
+                    "tipoOperacion": "Sesión de fotos y Paquete Premium solo aplican en vestidos de XV."
+                }
+            )
+
         for field in _CELDA_FIELDS:
             if field in attrs:
                 attrs[field] = _upper_celda(attrs[field])
