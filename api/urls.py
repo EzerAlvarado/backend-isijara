@@ -26,6 +26,7 @@ urlpatterns = [
     ),
     path("corte/vales/<int:vale_id>/reponer/", views_corte.corte_reponer_vale, name="corte-reponer-vale"),
     path("finanzas/", views_finanzas.configuracion_finanzas, name="finanzas"),
+    path("finanzas/ingresos/", views_finanzas.ingresos_mes, name="finanzas-ingresos"),
     path("test/limpiar/", views.limpiar_datos_test, name="limpiar-datos-test"),
     path("", include(router.urls)),
 ]
