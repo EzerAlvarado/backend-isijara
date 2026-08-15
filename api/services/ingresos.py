@@ -43,6 +43,12 @@ def _inicio_fin_mes(anio: int, mes: int):
     return inicio, fin
 
 
+def inicio_dia_local(ahora=None):
+    """Medianoche de hoy en la zona del negocio (Hermosillo), no en UTC."""
+    local = timezone.localtime(ahora or timezone.now())
+    return local.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 def _monto_mxn(monto: Decimal, pago: str, linea: str, tc_cache: dict[str, Decimal]) -> Decimal:
     if pago == MetodoPago.DLLS:
         if linea not in tc_cache:
@@ -92,9 +98,9 @@ def _vacio() -> dict:
 
 def ingresos_mensuales(anio: int, mes: int) -> dict:
     inicio, fin = _inicio_fin_mes(anio, mes)
-    ahora = timezone.now()
-    hoy_inicio = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
-    es_mes_actual = ahora.year == anio and ahora.month == mes
+    hoy_inicio = inicio_dia_local()
+    hoy = timezone.localdate()
+    es_mes_actual = hoy.year == anio and hoy.month == mes
 
     txs = Transaccion.objects.filter(
         timestamp__gte=inicio,
