@@ -319,7 +319,11 @@ class RentaSerializer(serializers.ModelSerializer):
                 "pieza_pantalon",
                 getattr(instancia, "pieza_pantalon", None) if instancia else None,
             )
-            if fecha_salida and any((pieza_saco, pieza_chaleco, pieza_pantalon)):
+            if tipo_op in (Renta.TipoOperacion.VENTA, Renta.TipoOperacion.PREMIER):
+                attrs["pieza_saco"] = None
+                attrs["pieza_chaleco"] = None
+                attrs["pieza_pantalon"] = None
+            elif fecha_salida and any((pieza_saco, pieza_chaleco, pieza_pantalon)):
                 probe = Renta(
                     linea_negocio=linea,
                     fecha_salida=fecha_salida,

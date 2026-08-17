@@ -384,6 +384,10 @@ def sincronizar_devolucion(renta: Renta) -> None:
         Renta.objects.filter(pk=renta.pk).update(multa=Decimal("0"))
 
 
+def operacion_usa_inventario(tipo: str) -> bool:
+    return tipo not in (Renta.TipoOperacion.VENTA, Renta.TipoOperacion.PREMIER)
+
+
 def sincronizar_renta_inventario(renta: Renta, renta_anterior: Renta | None = None) -> None:
     if renta.cancelada:
         return
@@ -393,6 +397,10 @@ def sincronizar_renta_inventario(renta: Renta, renta_anterior: Renta | None = No
 
     for pieza_id in ids_viejos - ids_nuevos:
         liberar_pieza(pieza_id)
+
+    if not operacion_usa_inventario(renta.tipo_operacion):
+        actualizar_fecha_salio_renta(renta)
+        return
 
     if renta.linea_negocio != LineaNegocio.VESTIDOS:
         resueltas = resolver_piezas_desde_renta(renta)
