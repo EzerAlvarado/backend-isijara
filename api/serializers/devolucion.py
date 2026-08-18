@@ -37,6 +37,7 @@ class DevolucionSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    fechaEntrega = serializers.SerializerMethodField()
 
     class Meta:
         model = Devolucion
@@ -55,4 +56,18 @@ class DevolucionSerializer(serializers.ModelSerializer):
             "notaDanos",
             "confirmarSalio",
             "fechaSalioReal",
+            "fechaEntrega",
         ]
+
+    def get_fechaEntrega(self, obj: Devolucion) -> str:
+        """Misma fecha que el formulario / columna Entrega de rentas (fecha_salida)."""
+        renta = getattr(obj, "renta", None)
+        if renta is None:
+            return ""
+        salida = str(getattr(renta, "fecha_salida", "") or "").strip()
+        if salida:
+            return salida
+        cita = getattr(renta, "fecha_cita", None)
+        if isinstance(cita, dict):
+            return str(cita.get("valor") or "").strip()
+        return ""

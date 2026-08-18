@@ -86,3 +86,12 @@ class DevolucionVentaTests(TestCase):
         renta.save(update_fields=["tipo_operacion"])
         sincronizar_devolucion(renta)
         self.assertEqual(Devolucion.objects.filter(renta=renta).count(), 0)
+
+    def test_serializer_incluye_fecha_entrega_del_formulario(self):
+        from api.serializers.devolucion import DevolucionSerializer
+
+        renta = self._crear_renta(Renta.TipoOperacion.RENTA)
+        sincronizar_devolucion(renta)
+        devolucion = Devolucion.objects.get(renta=renta)
+        data = DevolucionSerializer(devolucion).data
+        self.assertEqual(data["fechaEntrega"], "27/07/2026")
