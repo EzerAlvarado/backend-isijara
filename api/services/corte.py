@@ -6,12 +6,13 @@ from django.db.models import Q
 from django.utils import timezone
 
 from api.models import Abono, CorteDia, Devolucion, LineaNegocio, MetodoPago, Renta, Transaccion, TurnoCorte, Vale
+from api.models.metodo_pago import es_pago_digital_mxn, es_pago_en_usd
 from api.services.conteo_caja import normalizar_conteo, totales_conteo
 from api.services.finanzas import obtener_fondo_feria, obtener_tipo_cambio
 
 
 def _monto_en_pesos(monto: Decimal, pago: str, linea_negocio: str) -> Decimal:
-    if pago == MetodoPago.DLLS:
+    if es_pago_en_usd(pago):
         return Decimal(monto) * obtener_tipo_cambio(linea_negocio)
     return Decimal(monto)
 
@@ -526,7 +527,7 @@ def calcular_resumen(corte: CorteDia) -> dict:
 
         if tx.pago in (MetodoPago.PESOS, MetodoPago.DLLS):
             caja_dia += monto_mxn
-        elif tx.pago in (MetodoPago.BBVA, MetodoPago.ZELLE):
+        elif es_pago_digital_mxn(tx.pago) or tx.pago == MetodoPago.ZELLE:
             if monto > 0:
                 digital_pesos += monto_mxn
 

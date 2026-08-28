@@ -6,6 +6,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from api.models import LineaNegocio, MetodoPago, Renta, Transaccion
+from api.models.metodo_pago import es_pago_en_usd
 from api.services.finanzas import obtener_tipo_cambio
 from api.services.vales import es_gasto_fondo
 
@@ -50,7 +51,7 @@ def inicio_dia_local(ahora=None):
 
 
 def _monto_mxn(monto: Decimal, pago: str, linea: str, tc_cache: dict[str, Decimal]) -> Decimal:
-    if pago == MetodoPago.DLLS:
+    if es_pago_en_usd(pago):
         if linea not in tc_cache:
             tc_cache[linea] = obtener_tipo_cambio(linea)
         return Decimal(monto) * tc_cache[linea]
