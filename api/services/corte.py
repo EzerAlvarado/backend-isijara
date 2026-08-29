@@ -225,6 +225,12 @@ def sincronizar_transacciones_dia(fecha: date, linea_negocio: str) -> None:
         ):
             registrar_transaccion_renta(renta)
 
+        for abono in Abono.objects.filter(
+            creado_en__range=(inicio, fin),
+            renta__linea_negocio=linea_negocio,
+        ).select_related("renta"):
+            registrar_transaccion_abono(abono)
+
         for dev in Devolucion.objects.filter(
             estatus=Devolucion.Estatus.REGRESADO,
             renta__linea_negocio=linea_negocio,
@@ -420,14 +426,21 @@ def _rango_transacciones_corte(corte: CorteDia) -> tuple[datetime, datetime]:
     return inicio, fin
 
 
+def _filtro_categoria_transaccion(qs, categoria: str | None):
+    """Trajes usa categoria NULL; algunas filas viejas tienen cadena vacía."""
+    if categoria:
+        return qs.filter(categoria_vestido=categoria)
+    return qs.filter(Q(categoria_vestido__isnull=True) | Q(categoria_vestido=""))
+
+
 def transacciones_del_corte(corte: CorteDia):
     inicio, fin = _rango_transacciones_corte(corte)
-    return Transaccion.objects.filter(
+    qs = Transaccion.objects.filter(
         timestamp__range=(inicio, fin),
         linea_negocio=corte.linea_negocio,
-        categoria_vestido=corte.categoria_vestido,
         anulada=False,
-    ).order_by("-timestamp")
+    )
+    return _filtro_categoria_transaccion(qs, corte.categoria_vestido).order_by("-timestamp")
 
 
 def transacciones_del_dia(fecha: date, linea_negocio: str):
@@ -439,6 +452,14 @@ def transacciones_del_dia(fecha: date, linea_negocio: str):
     ).order_by("-timestamp")
 
 
+def _categorias_corte_coinciden(tx_categoria: str | None, corte_categoria: str | None) -> bool:
+    tx_cat = tx_categoria or None
+    corte_cat = corte_categoria or None
+    if tx_cat is None and corte_cat is None:
+        return True
+    return tx_cat == corte_cat
+
+
 def anular_transaccion(corte: CorteDia, tx: Transaccion) -> Transaccion:
     """Saca un movimiento del corte de forma permanente (caso excepcional)."""
     if corte.cerrado:
@@ -447,7 +468,7 @@ def anular_transaccion(corte: CorteDia, tx: Transaccion) -> Transaccion:
         raise ValueError("Este movimiento ya fue anulado.")
     if tx.linea_negocio != corte.linea_negocio:
         raise ValueError("El movimiento no corresponde a esta línea de negocio.")
-    if tx.categoria_vestido != corte.categoria_vestido:
+    if not _categorias_corte_coinciden(tx.categoria_vestido, corte.categoria_vestido):
         raise ValueError("El movimiento no corresponde a esta categoría.")
 
     inicio, fin = _rango_transacciones_corte(corte)
