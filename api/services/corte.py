@@ -18,9 +18,27 @@ def _monto_en_pesos(monto: Decimal, pago: str, linea_negocio: str) -> Decimal:
 
 
 def _monto_cobro_renta(renta: Renta) -> Decimal:
+    """Dinero realmente cobrado al registrar la renta (anticipo/efectivo), no el precio total."""
+    mxn = Decimal(renta.pago_efectivo_mxn or 0)
+    usd = Decimal(renta.pago_efectivo_usd or 0)
+    metodo = renta.metodo_pago or MetodoPago.PESOS
+
+    if mxn > 0 or usd > 0:
+        if es_pago_en_usd(metodo):
+            if usd > 0:
+                return usd
+            if renta.anticipo > 0:
+                return Decimal(renta.anticipo)
+            return Decimal("0")
+        if mxn > 0:
+            return mxn
+        if renta.anticipo > 0:
+            return Decimal(renta.anticipo)
+        return Decimal("0")
+
     if renta.anticipo > 0:
-        return renta.anticipo
-    return renta.fondo
+        return Decimal(renta.anticipo)
+    return Decimal("0")
 
 
 def _inicio_fin_dia(fecha: date) -> tuple[datetime, datetime]:
@@ -216,7 +234,40 @@ def registrar_transaccion_multa_renta(renta: Renta) -> None:
     )
 
 
+def _anular_transaccion_ref(referencia: str, linea: str) -> None:
+    now = timezone.now()
+    Transaccion.objects.filter(
+        referencia=referencia,
+        linea_negocio=linea,
+        anulada=False,
+    ).update(anulada=True, anulada_en=now)
+
+
+def anular_transacciones_renta(renta: Renta) -> None:
+    """Al eliminar una renta, sus movimientos de corte ya no deben contar en ingresos."""
+    linea = renta.linea_negocio or LineaNegocio.TRAJES
+    _anular_transaccion_ref(f"R{renta.pk}", linea)
+    for abono_id in renta.abonos.values_list("pk", flat=True):
+        _anular_transaccion_ref(f"A{abono_id}", linea)
+    for ref in _qs_multa_renta(renta.pk, linea).values_list("referencia", flat=True):
+        _anular_transaccion_ref(ref, linea)
+
+
+def _limpiar_transacciones_huerfanas(linea_negocio: str) -> None:
+    """Rentas/abonos borrados dejan transacciones R*/A* activas: se anulan."""
+    txs = Transaccion.objects.filter(linea_negocio=linea_negocio, anulada=False)
+    for tx in txs.iterator():
+        ref = tx.referencia or ""
+        if len(ref) > 1 and ref[0] == "R" and ref[1:].isdigit():
+            if not Renta.objects.filter(pk=int(ref[1:])).exists():
+                _anular_transaccion_ref(ref, linea_negocio)
+        elif len(ref) > 1 and ref[0] == "A" and ref[1:].isdigit():
+            if not Abono.objects.filter(pk=int(ref[1:])).exists():
+                _anular_transaccion_ref(ref, linea_negocio)
+
+
 def sincronizar_transacciones_dia(fecha: date, linea_negocio: str) -> None:
+    _limpiar_transacciones_huerfanas(linea_negocio)
     inicio, fin = _inicio_fin_dia(fecha)
     with transaction.atomic():
         for renta in Renta.objects.filter(

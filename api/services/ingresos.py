@@ -1,5 +1,5 @@
 from calendar import monthrange
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from django.db.models import Q
@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from api.models import LineaNegocio, MetodoPago, Renta, Transaccion
 from api.models.metodo_pago import es_pago_en_usd
+from api.services.corte import sincronizar_transacciones_dia
 from api.services.finanzas import obtener_tipo_cambio
 from api.services.vales import es_gasto_fondo
 
@@ -97,7 +98,20 @@ def _vacio() -> dict:
     }
 
 
+def _sincronizar_mes_corte(anio: int, mes: int) -> None:
+    """Recalcula movimientos del mes para que ingresos = corte."""
+    hoy = timezone.localdate()
+    ultimo = monthrange(anio, mes)[1]
+    if anio == hoy.year and mes == hoy.month:
+        ultimo = hoy.day
+    for dia in range(1, ultimo + 1):
+        fecha = date(anio, mes, dia)
+        sincronizar_transacciones_dia(fecha, LineaNegocio.TRAJES)
+        sincronizar_transacciones_dia(fecha, LineaNegocio.VESTIDOS)
+
+
 def ingresos_mensuales(anio: int, mes: int) -> dict:
+    _sincronizar_mes_corte(anio, mes)
     inicio, fin = _inicio_fin_mes(anio, mes)
     hoy_inicio = inicio_dia_local()
     hoy = timezone.localdate()
