@@ -11,13 +11,14 @@ class MetodoPago(models.TextChoices):
     TARJETA = "tarjeta", "Tarjeta"
 
 
-PAGOS_DIGITALES = (
-    MetodoPago.BBVA,
-    MetodoPago.ZELLE,
-    MetodoPago.TRANSFERENCIA,
-    MetodoPago.TARJETA,
-)
+def es_pago_en_usd(pago: str) -> bool:
+    return pago in (MetodoPago.DLLS, MetodoPago.ZELLE)
+
+
+def es_pago_digital_mxn(pago: str) -> bool:
+    return pago in (MetodoPago.BBVA, MetodoPago.TRANSFERENCIA, MetodoPago.TARJETA)
 
 
 def es_pago_digital(pago: str | None) -> bool:
-    return (pago or "") in PAGOS_DIGITALES
+    metodo = pago or ""
+    return es_pago_digital_mxn(metodo) or metodo == MetodoPago.ZELLE

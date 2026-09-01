@@ -3,11 +3,12 @@ from decimal import Decimal
 from django.db.models import Sum
 
 from api.models import Abono, MetodoPago, Renta
+from api.models.metodo_pago import es_pago_en_usd
 from api.services.finanzas import obtener_tipo_cambio
 
 
 def monto_en_pesos(monto: Decimal, pago: str, linea_negocio: str) -> Decimal:
-    if pago == MetodoPago.DLLS:
+    if es_pago_en_usd(pago):
         return Decimal(monto) * obtener_tipo_cambio(linea_negocio)
     return Decimal(monto)
 
@@ -24,8 +25,8 @@ def monto_inicial_pagado_mxn(renta: Renta) -> Decimal:
     if renta.metodo_pago in (MetodoPago.MIXTO, MetodoPago.DLLS) and (mxn > 0 or usd > 0):
         tc = obtener_tipo_cambio(renta.linea_negocio)
         return mxn + usd * tc
-    if renta.metodo_pago == MetodoPago.DLLS:
-        return monto_en_pesos(renta.anticipo, MetodoPago.DLLS, renta.linea_negocio)
+    if es_pago_en_usd(renta.metodo_pago):
+        return monto_en_pesos(renta.anticipo, renta.metodo_pago, renta.linea_negocio)
     return Decimal(renta.anticipo)
 
 

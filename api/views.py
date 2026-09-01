@@ -31,6 +31,7 @@ from api.serializers.abono import AbonoCreateSerializer, AbonoSerializer
 from api.serializers.renta import MultaRentaSerializer
 from api.services.abonos import crear_abono
 from api.services.corte import (
+    anular_transacciones_renta,
     registrar_transaccion_danos,
     registrar_transaccion_multa,
     registrar_transaccion_multa_renta,
@@ -202,7 +203,7 @@ class RentaViewSet(FiltrarPorLineaMixin, viewsets.ModelViewSet):
             )
             if i
         ]
-        # El dinero del corte (Transaccion) se conserva a propósito.
+        anular_transacciones_renta(instance)
         instance.delete()
         for pieza_id in ids:
             liberar_pieza(pieza_id)
