@@ -6,6 +6,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from api.models import Abono, CorteDia, Devolucion, LineaNegocio, MetodoPago, Renta, Transaccion, TurnoCorte, Vale
+from api.models.metodo_pago import es_pago_digital
 from api.services.conteo_caja import normalizar_conteo, totales_conteo
 from api.services.finanzas import obtener_fondo_feria, obtener_tipo_cambio
 
@@ -526,7 +527,7 @@ def calcular_resumen(corte: CorteDia) -> dict:
 
         if tx.pago in (MetodoPago.PESOS, MetodoPago.DLLS):
             caja_dia += monto_mxn
-        elif tx.pago in (MetodoPago.BBVA, MetodoPago.ZELLE):
+        elif es_pago_digital(tx.pago):
             if monto > 0:
                 digital_pesos += monto_mxn
 
@@ -670,4 +671,23 @@ def cerrar_corte(
 
     corte.save(update_fields=update_fields)
     _propagar_fondo_tras_cierre(corte)
+    return corte
+
+
+def reabrir_corte(
+    fecha: date,
+    linea_negocio: str,
+    turno: str | None = None,
+    categoria: str | None = None,
+) -> CorteDia:
+    """Reabre un corte cerrado para corregir el conteo y volver a cerrarlo."""
+    turno = resolver_turno(fecha, linea_negocio, turno, categoria)
+    corte = obtener_o_crear_corte(fecha, linea_negocio, turno, categoria)
+    if not corte.cerrado:
+        raise ValueError("Este corte ya está abierto.")
+
+    corte.cerrado = False
+    corte.omitido = False
+    corte.cerrado_en = None
+    corte.save(update_fields=["cerrado", "omitido", "cerrado_en", "actualizado_en"])
     return corte

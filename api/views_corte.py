@@ -12,6 +12,7 @@ from api.services.corte import (
     calcular_resumen,
     cerrar_corte,
     corte_incluye_manana,
+    reabrir_corte,
     estado_turnos_dia,
     multas_tardias_activas,
     obtener_o_crear_corte,
@@ -202,6 +203,31 @@ def corte_cierre(request):
                 {"detail": "Se requiere conteoFondo y conteoCaja, o conteoFisico."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+    except ValueError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(_payload_corte(fecha, linea, corte.turno, categoria))
+
+
+@ratelimit(key="user", rate="10/h", method="POST", block=True)
+@api_view(["POST"])
+@permission_classes([TienePerfilNegocio])
+def corte_reabrir(request):
+    linea = linea_negocio_usuario(request.user)
+    categoria = _parse_categoria_query(
+        request.data.get("categoria") or request.query_params.get("categoria"),
+        linea,
+        request.user,
+    )
+    try:
+        fecha = parse_fecha_query(request.data.get("fecha") or request.query_params.get("fecha"))
+        turno = parse_turno_query(request.data.get("turno") or request.query_params.get("turno"))
+    except Exception as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    corte = obtener_o_crear_corte(fecha, linea, turno, categoria)
+    try:
+        reabrir_corte(fecha, linea, turno=turno or corte.turno, categoria=categoria)
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

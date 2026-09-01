@@ -18,6 +18,7 @@ urlpatterns = [
     path("auth/me/", views_auth.me, name="auth-me"),
     path("corte/", views_corte.corte_dia, name="corte-dia"),
     path("corte/cierre/", views_corte.corte_cierre, name="corte-cierre"),
+    path("corte/reabrir/", views_corte.corte_reabrir, name="corte-reabrir"),
     path("corte/gasto/", views_corte.corte_gasto, name="corte-gasto"),
     path(
         "corte/transacciones/<int:tx_id>/anular/",

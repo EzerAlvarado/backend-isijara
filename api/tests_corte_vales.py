@@ -11,6 +11,7 @@ from api.services.corte import (
     _sincronizar_fondo_feria,
     calcular_resumen,
     cerrar_corte,
+    reabrir_corte,
     vales_esperados_fondo,
 )
 from api.services.vales import registrar_gasto_fondo
@@ -172,3 +173,28 @@ class CorteValesPropagationTests(TestCase):
         registrar_gasto_fondo(corte, "INSUMOS", Decimal("732"), "pesos")
         corte.refresh_from_db()
         self.assertEqual(corte.conteo_fondo["valesMxn"], 732)
+
+    def test_reabrir_corte_deja_abierto_y_conserva_conteo(self):
+        CorteDia.objects.create(
+            fecha=self.fecha,
+            turno=TurnoCorte.MANANA,
+            linea_negocio=LineaNegocio.TRAJES,
+            fondo_inicial=Decimal("2732"),
+            conteo_fondo=self._conteo_fondo_con_vales(732, billetes=2000),
+            cerrado=True,
+        )
+        reabierto = reabrir_corte(self.fecha, LineaNegocio.TRAJES, TurnoCorte.MANANA)
+        self.assertFalse(reabierto.cerrado)
+        self.assertFalse(reabierto.omitido)
+        self.assertIsNone(reabierto.cerrado_en)
+        self.assertEqual(reabierto.conteo_fondo["valesMxn"], 732)
+
+    def test_reabrir_corte_abierto_falla(self):
+        CorteDia.objects.create(
+            fecha=self.fecha,
+            turno=TurnoCorte.MANANA,
+            linea_negocio=LineaNegocio.TRAJES,
+            fondo_inicial=Decimal("2732"),
+        )
+        with self.assertRaises(ValueError):
+            reabrir_corte(self.fecha, LineaNegocio.TRAJES, TurnoCorte.MANANA)
