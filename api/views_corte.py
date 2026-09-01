@@ -12,6 +12,7 @@ from api.services.corte import (
     calcular_resumen,
     cerrar_corte,
     corte_incluye_manana,
+    mover_transaccion_a_turno,
     reabrir_corte,
     estado_turnos_dia,
     multas_tardias_activas,
@@ -305,6 +306,50 @@ def corte_anular_transaccion(request, tx_id):
 
     try:
         tx = anular_transaccion(corte, tx)
+    except ValueError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(
+        {
+            "transaccion": TransaccionSerializer(tx).data,
+            **_payload_corte(fecha, linea, corte.turno, categoria),
+        },
+    )
+
+
+@ratelimit(key="user", rate="30/h", method="POST", block=True)
+@api_view(["POST"])
+@permission_classes([TienePerfilNegocio])
+def corte_mover_transaccion(request, tx_id):
+    linea = linea_negocio_usuario(request.user)
+    categoria = _parse_categoria_query(
+        request.data.get("categoria") or request.query_params.get("categoria"),
+        linea,
+        request.user,
+    )
+    try:
+        fecha = parse_fecha_query(request.data.get("fecha") or request.query_params.get("fecha"))
+        turno = parse_turno_query(request.data.get("turno") or request.query_params.get("turno"))
+        turno_destino = parse_turno_query(
+            request.data.get("turnoDestino") or request.data.get("turno_destino"),
+        )
+    except Exception as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not turno_destino:
+        return Response(
+            {"detail": "Indica el turno destino (mañana o tarde)."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    corte = obtener_o_crear_corte(fecha, linea, turno, categoria)
+    try:
+        tx = Transaccion.objects.get(pk=tx_id, linea_negocio=linea)
+    except Transaccion.DoesNotExist:
+        return Response({"detail": "Movimiento no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        tx = mover_transaccion_a_turno(corte, tx, turno_destino)
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

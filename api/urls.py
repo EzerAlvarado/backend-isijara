@@ -25,6 +25,11 @@ urlpatterns = [
         views_corte.corte_anular_transaccion,
         name="corte-anular-transaccion",
     ),
+    path(
+        "corte/transacciones/<int:tx_id>/mover/",
+        views_corte.corte_mover_transaccion,
+        name="corte-mover-transaccion",
+    ),
     path("corte/vales/<int:vale_id>/reponer/", views_corte.corte_reponer_vale, name="corte-reponer-vale"),
     path("finanzas/", views_finanzas.configuracion_finanzas, name="finanzas"),
     path("finanzas/ingresos/", views_finanzas.ingresos_mes, name="finanzas-ingresos"),

@@ -18,27 +18,30 @@ def _monto_en_pesos(monto: Decimal, pago: str, linea_negocio: str) -> Decimal:
 
 
 def _monto_cobro_renta(renta: Renta) -> Decimal:
-    """Dinero realmente cobrado al registrar la renta (anticipo/efectivo), no el precio total."""
+    """Dinero cobrado al registrar la renta. En BBVA/transferencia/tarjeta es el anticipo."""
     mxn = Decimal(renta.pago_efectivo_mxn or 0)
     usd = Decimal(renta.pago_efectivo_usd or 0)
     metodo = renta.metodo_pago or MetodoPago.PESOS
+    anticipo = Decimal(renta.anticipo or 0)
+    fondo = Decimal(renta.fondo or 0)
+
+    if es_pago_digital(metodo):
+        if anticipo > 0:
+            return anticipo
+        return fondo if fondo > 0 else Decimal("0")
 
     if mxn > 0 or usd > 0:
         if es_pago_en_usd(metodo):
             if usd > 0:
                 return usd
-            if renta.anticipo > 0:
-                return Decimal(renta.anticipo)
-            return Decimal("0")
+            return anticipo if anticipo > 0 else Decimal("0")
         if mxn > 0:
             return mxn
-        if renta.anticipo > 0:
-            return Decimal(renta.anticipo)
-        return Decimal("0")
+        return anticipo if anticipo > 0 else Decimal("0")
 
-    if renta.anticipo > 0:
-        return Decimal(renta.anticipo)
-    return Decimal("0")
+    if anticipo > 0:
+        return anticipo
+    return fondo if fondo > 0 else Decimal("0")
 
 
 def _inicio_fin_dia(fecha: date) -> tuple[datetime, datetime]:
@@ -120,6 +123,40 @@ def registrar_transaccion_renta(renta: Renta) -> None:
     )
 
 
+def _aplicar_defaults_sin_mover_hora(tx: Transaccion, defaults: dict) -> Transaccion:
+    """Actualiza monto/cliente/pago sin cambiar la hora (el turno del corte)."""
+    campos = []
+    for campo, valor in defaults.items():
+        if campo == "timestamp":
+            continue
+        if getattr(tx, campo) != valor:
+            setattr(tx, campo, valor)
+            campos.append(campo)
+    if campos:
+        tx.save(update_fields=campos)
+    return tx
+
+
+def _upsert_transaccion_conservando_hora(
+    *,
+    referencia: str,
+    linea: str,
+    defaults: dict,
+) -> Transaccion | None:
+    existing = Transaccion.objects.filter(referencia=referencia, linea_negocio=linea).first()
+    if existing:
+        if existing.anulada:
+            return existing
+        return _aplicar_defaults_sin_mover_hora(existing, defaults)
+    create_data = {k: v for k, v in defaults.items() if k != "timestamp"}
+    return Transaccion.objects.create(
+        referencia=referencia,
+        linea_negocio=linea,
+        timestamp=defaults.get("timestamp") or timezone.now(),
+        **create_data,
+    )
+
+
 def registrar_transaccion_multa(devolucion: Devolucion) -> None:
     linea = devolucion.renta.linea_negocio if devolucion.renta_id else LineaNegocio.TRAJES
     categoria = None
@@ -134,9 +171,9 @@ def registrar_transaccion_multa(devolucion: Devolucion) -> None:
     if _tx_anulada(referencia, linea):
         return
 
-    Transaccion.objects.update_or_create(
+    _upsert_transaccion_conservando_hora(
         referencia=referencia,
-        linea_negocio=linea,
+        linea=linea,
         defaults={
             "timestamp": timezone.now(),
             "cliente": (devolucion.cliente or "").upper(),
@@ -191,9 +228,9 @@ def registrar_transaccion_danos(devolucion: Devolucion) -> None:
     if _tx_anulada(referencia, linea):
         return
 
-    Transaccion.objects.update_or_create(
+    _upsert_transaccion_conservando_hora(
         referencia=referencia,
-        linea_negocio=linea,
+        linea=linea,
         defaults={
             "timestamp": timezone.now(),
             "cliente": (devolucion.cliente or "").upper(),
@@ -222,9 +259,7 @@ def registrar_transaccion_multa_renta(renta: Renta) -> None:
         "categoria_vestido": categoria,
     }
     if activa:
-        for campo, valor in defaults.items():
-            setattr(activa, campo, valor)
-        activa.save(update_fields=[*defaults.keys()])
+        _aplicar_defaults_sin_mover_hora(activa, defaults)
         return
 
     Transaccion.objects.create(
@@ -538,6 +573,48 @@ def anular_transaccion(corte: CorteDia, tx: Transaccion) -> Transaccion:
         tx.anulada_en = timezone.now()
         tx.save(update_fields=["anulada", "anulada_en"])
 
+    return tx
+
+
+def mover_transaccion_a_turno(corte: CorteDia, tx: Transaccion, turno_destino: str) -> Transaccion:
+    """Pasa un movimiento al otro turno del mismo día (ej. multa cobrada en la mañana)."""
+    if corte.cerrado:
+        raise ValueError("Reabre el corte para mover un movimiento a otro turno.")
+    if tx.anulada:
+        raise ValueError("No se puede mover un movimiento anulado.")
+    if tx.linea_negocio != corte.linea_negocio:
+        raise ValueError("El movimiento no corresponde a esta línea de negocio.")
+    if not _categorias_corte_coinciden(tx.categoria_vestido, corte.categoria_vestido):
+        raise ValueError("El movimiento no corresponde a esta categoría.")
+    if turno_destino not in (TurnoCorte.MANANA, TurnoCorte.TARDE):
+        raise ValueError("Turno destino inválido.")
+    if turno_destino == corte.turno:
+        raise ValueError("El movimiento ya está en ese turno.")
+
+    inicio, fin = _rango_transacciones_corte(corte)
+    if not (inicio <= tx.timestamp <= fin):
+        raise ValueError("El movimiento no pertenece a este turno de corte.")
+
+    inicio_dia, fin_dia = _inicio_fin_dia(corte.fecha)
+    manana = _corte_turno(corte.fecha, corte.linea_negocio, TurnoCorte.MANANA, corte.categoria_vestido)
+
+    if turno_destino == TurnoCorte.MANANA:
+        if manana and manana.cerrado and manana.cerrado_en and not manana.omitido:
+            nuevo = manana.cerrado_en - timedelta(seconds=1)
+        else:
+            nuevo = inicio_dia + timedelta(hours=10)
+    elif manana and manana.cerrado and manana.cerrado_en and not manana.omitido:
+        nuevo = manana.cerrado_en + timedelta(seconds=1)
+    else:
+        nuevo = inicio_dia + timedelta(hours=16)
+
+    if nuevo < inicio_dia:
+        nuevo = inicio_dia + timedelta(minutes=1)
+    if nuevo > fin_dia:
+        nuevo = fin_dia
+
+    tx.timestamp = nuevo
+    tx.save(update_fields=["timestamp"])
     return tx
 
 
