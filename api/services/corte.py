@@ -18,17 +18,14 @@ def _monto_en_pesos(monto: Decimal, pago: str, linea_negocio: str) -> Decimal:
 
 
 def _monto_cobro_renta(renta: Renta) -> Decimal:
-    """Dinero cobrado al registrar la renta. En BBVA/transferencia/tarjeta es el anticipo."""
+    """Dinero realmente cobrado al registrar la renta (anticipo/efectivo), no el precio total."""
     mxn = Decimal(renta.pago_efectivo_mxn or 0)
     usd = Decimal(renta.pago_efectivo_usd or 0)
     metodo = renta.metodo_pago or MetodoPago.PESOS
     anticipo = Decimal(renta.anticipo or 0)
-    fondo = Decimal(renta.fondo or 0)
 
     if es_pago_digital(metodo):
-        if anticipo > 0:
-            return anticipo
-        return fondo if fondo > 0 else Decimal("0")
+        return anticipo if anticipo > 0 else Decimal("0")
 
     if mxn > 0 or usd > 0:
         if es_pago_en_usd(metodo):
@@ -39,9 +36,7 @@ def _monto_cobro_renta(renta: Renta) -> Decimal:
             return mxn
         return anticipo if anticipo > 0 else Decimal("0")
 
-    if anticipo > 0:
-        return anticipo
-    return fondo if fondo > 0 else Decimal("0")
+    return anticipo if anticipo > 0 else Decimal("0")
 
 
 def _inicio_fin_dia(fecha: date) -> tuple[datetime, datetime]:
