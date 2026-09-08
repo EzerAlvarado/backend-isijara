@@ -20,10 +20,11 @@ from api.services.corte import (
     resolver_turno,
     sincronizar_transacciones_dia,
     transacciones_del_corte,
+    _conteo_tiene_desglose,
+    _merge_totales_conteo,
 )
 from api.serializers.vale import ValeSerializer
 from api.services.conteo_caja import normalizar_conteo, totales_conteo
-from api.services.corte import _merge_totales_conteo
 from api.services.finanzas import obtener_fondo_feria, obtener_tipo_cambio
 from api.services.vales import registrar_gasto_fondo, reponer_vale, vales_pendientes
 
@@ -59,8 +60,12 @@ def _payload_corte(fecha, linea_negocio, turno=None, categoria=None):
     totales_caja = totales_conteo(conteo_caja)
     tc = float(obtener_tipo_cambio(linea_negocio))
 
-    usa_conteo_separado = bool(corte.conteo_caja)
-    if usa_conteo_separado:
+    # Solo trata como "caja contada" si hay desglose real (no un dict vacío/ceros).
+    usa_conteo_caja = _conteo_tiene_desglose(corte.conteo_caja)
+    usa_conteo_fondo = _conteo_tiene_desglose(corte.conteo_fondo)
+
+    if usa_conteo_caja:
+        # Cierres antiguos: se contaba fondo + caja billete por billete.
         totales_resumen = _merge_totales_conteo(totales_fondo, totales_caja)
         contado_mxn = (
             totales_fondo["mxnTotal"]
@@ -68,12 +73,16 @@ def _payload_corte(fecha, linea_negocio, turno=None, categoria=None):
             + totales_caja["mxnTotal"]
             + totales_caja["usdTotal"] * tc
         )
+        esperado_total = resumen["fondoInicial"] + resumen["cajaDelDia"]
+    elif usa_conteo_fondo:
+        # Cierre actual: solo se cuenta el fondo; la caja del turno sale del sistema.
+        totales_resumen = totales_fondo
+        contado_mxn = totales_fondo["mxnTotal"] + totales_fondo["usdTotal"] * tc
+        esperado_total = resumen["fondoInicial"]
     else:
         totales_resumen = totales_cierre
         contado_mxn = totales_cierre["mxnTotal"] + totales_cierre["usdTotal"] * tc
-
-    # El fondo esperado es el monto de referencia; los vales en el conteo cubren efectivo faltante.
-    esperado_total = resumen["fondoInicial"] + resumen["cajaDelDia"]
+        esperado_total = resumen["fondoInicial"] + resumen["cajaDelDia"]
     vales = list(vales_pendientes(linea_negocio, categoria))
     return {
         "fecha": fecha.isoformat(),
@@ -190,6 +199,15 @@ def corte_cierre(request):
                 empleado=empleado,
                 categoria=categoria,
             )
+        elif conteo_fondo is not None:
+            cerrar_corte(
+                fecha,
+                linea,
+                turno=turno_cierre,
+                conteo_fondo=conteo_fondo,
+                empleado=empleado,
+                categoria=categoria,
+            )
         elif conteo_fisico is not None:
             cerrar_corte(
                 fecha,
@@ -201,7 +219,7 @@ def corte_cierre(request):
             )
         else:
             return Response(
-                {"detail": "Se requiere conteoFondo y conteoCaja, o conteoFisico."},
+                {"detail": "Se requiere conteoFondo (opcionalmente conteoCaja), o conteoFisico."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
     except ValueError as exc:

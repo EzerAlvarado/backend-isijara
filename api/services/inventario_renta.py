@@ -72,6 +72,32 @@ def renta_bloquea_disponibilidad(renta: Renta) -> bool:
     return True
 
 
+def _valor_fecha_cita(renta: Renta) -> str:
+    cita = renta.fecha_cita
+    if isinstance(cita, dict):
+        return str(cita.get("valor") or "").strip()
+    return str(cita or "").strip()
+
+
+def _semanas_ocupacion_renta(renta: Renta) -> list[date]:
+    """Semanas que bloquea la pieza: entrega y, en XV premium, también la sesión."""
+    semanas: list[date] = []
+    sem = semana_key_desde_fecha_salida(renta.fecha_salida) or renta.semana_inicio
+    if isinstance(sem, date):
+        semanas.append(sem)
+
+    if (
+        renta.tipo_operacion == Renta.TipoOperacion.PAQUETE_PREMIUM
+        and (renta.categoria_vestido or "") == "quince"
+    ):
+        cita = _valor_fecha_cita(renta)
+        if cita and cita != (renta.fecha_salida or "").strip():
+            sem_cita = semana_key_desde_fecha_salida(cita)
+            if sem_cita and sem_cita not in semanas:
+                semanas.append(sem_cita)
+    return semanas
+
+
 def conflicto_pieza_en_rentas(
     pieza_id: int,
     fecha_salida: str,
@@ -103,39 +129,53 @@ def conflicto_pieza_en_rentas(
         if not renta_bloquea_disponibilidad(renta):
             continue
 
-        sem_r = semana_key_desde_fecha_salida(renta.fecha_salida) or renta.semana_inicio
-        if sem_r == semana_ref:
-            return {
-                "estado": "ocupada_misma_semana",
-                "renta_id": renta.pk,
-                "fecha_salida": renta.fecha_salida,
-            }
-        if sem_r == semana_sig and aviso_siguiente is None:
-            aviso_siguiente = {
-                "estado": "reservada_semana_siguiente",
-                "renta_id": renta.pk,
-                "fecha_salida": renta.fecha_salida,
-            }
+        for sem_r in _semanas_ocupacion_renta(renta):
+            if sem_r == semana_ref:
+                fecha_conflicto = (
+                    _valor_fecha_cita(renta)
+                    if semana_key_desde_fecha_salida(_valor_fecha_cita(renta)) == sem_r
+                    else renta.fecha_salida
+                )
+                return {
+                    "estado": "ocupada_misma_semana",
+                    "renta_id": renta.pk,
+                    "fecha_salida": fecha_conflicto or renta.fecha_salida,
+                }
+            if sem_r == semana_sig and aviso_siguiente is None:
+                aviso_siguiente = {
+                    "estado": "reservada_semana_siguiente",
+                    "renta_id": renta.pk,
+                    "fecha_salida": renta.fecha_salida,
+                }
 
     return aviso_siguiente
 
 
 def validar_disponibilidad_renta(renta: Renta, excluir_renta_id: int | None = None) -> str | None:
-    fecha = renta.fecha_salida
-    linea = renta.linea_negocio
-    for pieza, etiqueta in (
-        (renta.pieza_saco, "Saco"),
-        (renta.pieza_chaleco, "Chaleco"),
-        (renta.pieza_pantalon, "Pantalón"),
+    fechas = [renta.fecha_salida]
+    if (
+        renta.tipo_operacion == Renta.TipoOperacion.PAQUETE_PREMIUM
+        and (renta.categoria_vestido or "") == "quince"
     ):
-        if not pieza:
-            continue
-        conflicto = conflicto_pieza_en_rentas(pieza.pk, fecha, linea, excluir_renta_id)
-        if conflicto and conflicto.get("estado") == "ocupada_misma_semana":
-            return (
-                f"{etiqueta}: la pieza ya está rentada la semana del {fecha}. "
-                f"Sale el {conflicto['fecha_salida']}."
-            )
+        cita = _valor_fecha_cita(renta)
+        if cita and cita != (renta.fecha_salida or "").strip():
+            fechas.append(cita)
+
+    linea = renta.linea_negocio
+    for fecha in fechas:
+        for pieza, etiqueta in (
+            (renta.pieza_saco, "Saco"),
+            (renta.pieza_chaleco, "Chaleco"),
+            (renta.pieza_pantalon, "Pantalón"),
+        ):
+            if not pieza:
+                continue
+            conflicto = conflicto_pieza_en_rentas(pieza.pk, fecha, linea, excluir_renta_id)
+            if conflicto and conflicto.get("estado") == "ocupada_misma_semana":
+                return (
+                    f"{etiqueta}: la pieza ya está rentada la semana del {fecha}. "
+                    f"Sale el {conflicto['fecha_salida']}."
+                )
     return None
 
 

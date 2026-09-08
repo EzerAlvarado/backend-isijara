@@ -805,13 +805,23 @@ def cerrar_corte(
             corte.conteo_fondo,
             vales_pendientes_total,
         )
-        corte.conteo_caja = normalizar_conteo(conteo_caja)
+        caja_norm = normalizar_conteo(conteo_caja)
+        # Sin desglose de caja: guardar vacío (ya no se cuenta billete por billete la caja).
+        corte.conteo_caja = caja_norm if _conteo_tiene_desglose(caja_norm) else {}
+        update_fields.extend(["conteo_fondo", "conteo_caja"])
+    elif conteo_fondo is not None:
+        corte.conteo_fondo = _preservar_vales_conteo_fondo(
+            conteo_fondo,
+            corte.conteo_fondo,
+            vales_pendientes_total,
+        )
+        corte.conteo_caja = {}
         update_fields.extend(["conteo_fondo", "conteo_caja"])
     elif conteo_fisico is not None:
         corte.conteo_fisico = normalizar_conteo(conteo_fisico)
         update_fields.append("conteo_fisico")
     else:
-        raise ValueError("Se requiere el conteo de fondo y caja, o un conteo físico total.")
+        raise ValueError("Se requiere el conteo de fondo (y opcionalmente caja), o un conteo físico total.")
 
     corte.save(update_fields=update_fields)
     _propagar_fondo_tras_cierre(corte)
