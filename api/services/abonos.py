@@ -91,3 +91,13 @@ def crear_abono(
     )
     registrar_transaccion_abono(abono)
     return abono
+
+
+def eliminar_abono(abono: Abono) -> None:
+    """Borra un abono y anula su movimiento en el corte (si existe)."""
+    from api.services.corte import _anular_transaccion_ref
+
+    linea = abono.linea_negocio or abono.renta.linea_negocio
+    abono_id = abono.pk
+    _anular_transaccion_ref(f"A{abono_id}", linea)
+    abono.delete()

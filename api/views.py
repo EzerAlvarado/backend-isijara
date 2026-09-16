@@ -29,7 +29,7 @@ from api.serializers import (
 )
 from api.serializers.abono import AbonoCreateSerializer, AbonoSerializer
 from api.serializers.renta import MultaRentaSerializer
-from api.services.abonos import crear_abono
+from api.services.abonos import crear_abono, eliminar_abono
 from api.services.corte import (
     anular_transacciones_renta,
     registrar_transaccion_danos,
@@ -159,6 +159,23 @@ class RentaViewSet(FiltrarPorLineaMixin, viewsets.ModelViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"abono/(?P<abono_id>[0-9]+)",
+    )
+    def eliminar_abono_renta(self, request, pk=None, abono_id=None):
+        renta = self.get_object()
+        abono = renta.abonos.filter(pk=abono_id).first()
+        if not abono:
+            return Response(
+                {"detail": "Abono no encontrado en esta renta."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        eliminar_abono(abono)
+        renta.refresh_from_db()
+        return Response(self.get_serializer(renta).data)
 
     @action(detail=True, methods=["post"], url_path="multa")
     def multa(self, request, pk=None):
