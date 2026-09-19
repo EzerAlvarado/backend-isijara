@@ -80,6 +80,13 @@ def _siguiente_ref_multa_renta(renta_pk: int, linea: str) -> str:
 
 
 def registrar_transaccion_renta(renta: Renta) -> None:
+    """Registra el anticipo/cobro inicial de la renta en el corte.
+
+    La hora del movimiento es la del cobro en sistema (primera vez que se crea la
+    TX), no la «fecha de factura» (creado_en). Así el anticipo cae en el corte
+    del día en que se captura, igual que los abonos. La sincronización posterior
+    actualiza monto/cliente/pago sin mover la hora.
+    """
     linea = renta.linea_negocio or LineaNegocio.TRAJES
     categoria = renta.categoria_vestido if linea == LineaNegocio.VESTIDOS else None
     referencia = f"R{renta.pk}"
@@ -105,11 +112,11 @@ def registrar_transaccion_renta(renta: Renta) -> None:
     if pago == MetodoPago.MIXTO:
         pago = MetodoPago.PESOS
 
-    Transaccion.objects.update_or_create(
+    _upsert_transaccion_conservando_hora(
         referencia=referencia,
-        linea_negocio=linea,
+        linea=linea,
         defaults={
-            "timestamp": renta.creado_en or timezone.now(),
+            "timestamp": timezone.now(),
             "cliente": _cliente_renta(renta) or f"RENTA #{renta.pk}",
             "pago": pago,
             "monto": monto,
@@ -196,11 +203,11 @@ def registrar_transaccion_abono(abono: Abono) -> None:
     if pago == MetodoPago.MIXTO:
         pago = MetodoPago.PESOS
 
-    Transaccion.objects.update_or_create(
+    _upsert_transaccion_conservando_hora(
         referencia=referencia,
-        linea_negocio=linea,
+        linea=linea,
         defaults={
-            "timestamp": abono.creado_en,
+            "timestamp": abono.creado_en or timezone.now(),
             "cliente": _cliente_renta(renta) or f"RENTA #{renta.pk}",
             "pago": pago,
             "monto": abono.monto,
