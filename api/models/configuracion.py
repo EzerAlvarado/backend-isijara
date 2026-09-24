@@ -63,6 +63,16 @@ class ConfiguracionSistema(models.Model):
         default=False,
         help_text="Si es falso, en pantalones se prefiere código viejo; si es verdadero, código nuevo",
     )
+    class TintaRecibo(models.TextChoices):
+        NEGRA = "negra", "Negra"
+        AZUL = "azul", "Azul marino"
+
+    tinta_recibo = models.CharField(
+        max_length=12,
+        choices=TintaRecibo.choices,
+        default=TintaRecibo.NEGRA,
+        help_text="Color de impresión de recibos (usar azul si no hay tinta negra).",
+    )
     actualizado_en = models.DateTimeField(auto_now=True)
 
     class Meta:

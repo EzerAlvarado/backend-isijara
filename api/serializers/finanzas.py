@@ -42,6 +42,11 @@ class ConfiguracionFinanzasSerializer(serializers.ModelSerializer):
         source="usar_codigos_nuevos_pantalon",
         required=False,
     )
+    tintaRecibo = serializers.ChoiceField(
+        source="tinta_recibo",
+        choices=ConfiguracionSistema.TintaRecibo.choices,
+        required=False,
+    )
 
     class Meta:
         model = ConfiguracionSistema
@@ -51,6 +56,7 @@ class ConfiguracionFinanzasSerializer(serializers.ModelSerializer):
             "fondoFeria",
             "preciosReferencia",
             "usarCodigosNuevosPantalon",
+            "tintaRecibo",
             "actualizadoEn",
         ]
         read_only_fields = ["actualizadoEn"]
